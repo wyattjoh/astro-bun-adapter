@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { SSRManifest } from "astro";
 import { App } from "astro/app";
 import { setGetEnv } from "astro/env/setup";
+import { createISRHandler } from "./isr.ts";
 import type { AdapterOptions, ManifestEntry } from "./types.ts";
 
 // Required for astro:env/server to resolve env vars at runtime.
@@ -39,6 +40,11 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions) {
     Object.entries(JSON.parse(readFileSync(manifestPath, "utf-8")))
   );
 
+  // ISR handler — only allocated when enabled.
+  const isr = options.isr
+    ? createISRHandler(handler, options.isr.maxByteSize)
+    : undefined;
+
   const port = Number(process.env.PORT || options.port || 4321);
   const host =
     process.env.HOST ??
@@ -56,23 +62,30 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions) {
       const pathname = decodeURIComponent(url.pathname);
       const meta = staticManifest.get(pathname);
 
-      if (!meta) return handler(request);
+      if (meta) {
+        if (request.headers.get("if-none-match") === meta.etag) {
+          return new Response(null, { status: 304 });
+        }
 
-      if (request.headers.get("if-none-match") === meta.etag) {
-        return new Response(null, { status: 304 });
+        const headers: Record<string, string> = {
+          "Cache-Control": meta.cacheControl,
+          ETag: meta.etag,
+          "Content-Length": String(meta.size),
+        };
+        if (meta.contentType) headers["Content-Type"] = meta.contentType;
+
+        return new Response(Bun.file(join(clientDir, pathname.slice(1))), {
+          status: 200,
+          headers,
+        });
       }
 
-      const headers: Record<string, string> = {
-        "Cache-Control": meta.cacheControl,
-        ETag: meta.etag,
-        "Content-Length": String(meta.size),
-      };
-      if (meta.contentType) headers["Content-Type"] = meta.contentType;
+      // ISR disabled or non-GET — passthrough to SSR.
+      if (!isr || request.method !== "GET") {
+        return handler(request);
+      }
 
-      return new Response(Bun.file(join(clientDir, pathname.slice(1))), {
-        status: 200,
-        headers,
-      });
+      return isr(request, pathname);
     },
   });
 

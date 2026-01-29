@@ -21,6 +21,8 @@ export default defineConfig({
 });
 ```
 
+All Astro output modes are supported: `static`, `server`, and `hybrid`. Prerendered pages are served directly from the static manifest, while dynamic routes fall through to Astro's SSR handler.
+
 Build and run:
 
 ```bash
@@ -32,6 +34,29 @@ bun run ./dist/server/entry.mjs
 
 1. **Build time**: Walks `dist/client/` and generates `dist/server/static-manifest.json` with pre-computed ETags, MIME types, and cache headers for every static file.
 2. **Runtime**: `Bun.serve` checks incoming requests against the manifest. Static files are served directly with proper caching (`/_astro/*` gets immutable 1-year headers). Everything else falls through to Astro's SSR handler.
+
+## ISR (Incremental Static Regeneration)
+
+Enable ISR to cache SSR responses in-memory using an LRU cache. Cached responses are served according to standard `Cache-Control` semantics (`s-maxage` and `stale-while-revalidate`).
+
+```js
+// astro.config.mjs
+import { defineConfig } from "astro/config";
+import bun from "@wyattjoh/astro-bun-adapter";
+
+export default defineConfig({
+  output: "server",
+  adapter: bun({ isr: true }),
+});
+```
+
+To customize the maximum cache byte size (default: 50 MB):
+
+```js
+adapter: bun({ isr: { maxByteSize: 100 * 1024 * 1024 } }), // 100 MB
+```
+
+ISR only applies to `GET` requests whose responses include an `s-maxage` directive in their `Cache-Control` header. When a cached entry enters the `stale-while-revalidate` window, the stale response is served immediately while a background revalidation runs. Concurrent requests for the same path are deduplicated so only one SSR render is in-flight at a time.
 
 ## Environment Variables
 

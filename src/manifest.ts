@@ -4,9 +4,9 @@ import { join, relative } from "node:path";
 import { lookup } from "mrmime";
 import type { ManifestEntry, StaticManifest } from "./types.ts";
 
-// /_astro/* files are content-hashed by Vite, so they're safe to cache forever.
-function getCacheControl(pathname: string): string {
-  if (pathname.startsWith("/_astro/")) {
+// Assets files are content-hashed by Vite, so they're safe to cache forever.
+function getCacheControl(pathname: string, assetsPrefix: string): string {
+  if (pathname.startsWith(`/${assetsPrefix}/`)) {
     return "public, max-age=31536000, immutable";
   }
   return "public, max-age=86400, must-revalidate";
@@ -41,7 +41,8 @@ async function walk(dir: string): Promise<string[]> {
 // Must use node:fs/promises (not Bun APIs) since build hooks run under Node.
 export async function generateStaticManifest(
   clientDir: string,
-  outDir: string
+  outDir: string,
+  assetsPrefix: string
 ): Promise<void> {
   const files = await walk(clientDir);
   const manifest: StaticManifest = {};
@@ -56,7 +57,7 @@ export async function generateStaticManifest(
       const pathname = `/${relative(clientDir, filePath)}`;
       const entry: ManifestEntry = {
         contentType: lookup(filePath) ?? undefined,
-        cacheControl: getCacheControl(pathname),
+        cacheControl: getCacheControl(pathname, assetsPrefix),
         etag: `"${hash}"`,
         size: content.byteLength,
       };
