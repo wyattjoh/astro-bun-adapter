@@ -1,0 +1,54 @@
+{
+  "name": "@wyattjoh/astro-bun-adapter",
+  "version": "0.1.0",
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "main": "./dist/index.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wyattjoh/astro-bun-adapter.git"
+  },
+  "homepage": "https://github.com/wyattjoh/astro-bun-adapter#readme",
+  "bugs": {
+    "url": "https://github.com/wyattjoh/astro-bun-adapter/issues"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "exports": {
+    ".": "./dist/index.js",
+    "./server.js": "./dist/server.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "license": "MIT",
+  "author": "Wyatt Johnson",
+  "scripts": {
+    "build": "tsc && bun build --external 'astro' --external 'mrmime' --target bun src/**.ts --outdir dist/",
+    "prepack": "npm run build",
+    "release": "semantic-release"
+  },
+  "keywords": [
+    "astro-adapter",
+    "bun",
+    "withastro"
+  ],
+  "dependencies": {
+    "mrmime": "^2.0.0"
+  },
+  "devDependencies": {
+    "@semantic-release/changelog": "^6.0.3",
+    "@semantic-release/git": "^10.0.1",
+    "@types/bun": "^1.3.7",
+    "astro": "^5.0.0",
+    "semantic-release": "^22.0.12",
+    "typescript": "^5.9.3"
+  },
+  "peerDependencies": {
+    "astro": "^5.0.0"
+  }
+}
