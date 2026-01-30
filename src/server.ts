@@ -29,13 +29,15 @@ export function createExports(ssrManifest: SSRManifest): ServerExports {
     return app.render(request, { addCookieHeader: true, routeData });
   };
 
-  return { handler: handler };
+  return { handler };
 }
 
 // Called by entry.mjs with the adapter args (see index.ts).
 // Owns the full server — static file serving + SSR fallback.
 export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
   const { handler } = createExports(ssrManifest);
+  const app = new App(ssrManifest);
+  const logger = app.getAdapterLogger();
 
   // Resolve dirs from the file:// URLs passed through adapter args.
   const clientDir = fileURLToPath(new URL(options.client));
@@ -94,5 +96,5 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
     },
   });
 
-  console.log(`Server listening on http://${host}:${port}`);
+  logger.info(`Server listening on http://${host}:${port}`);
 }

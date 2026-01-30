@@ -1,7 +1,10 @@
 import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { decode, encode } from "cbor2";
+import debug from "debug";
 import type { ISRCacheEntry } from "../types.ts";
+
+const log = debug("@wyattjoh/astro-bun-adapter:cache");
 
 /**
  * A node within the doubly-linked list that tracks access recency.
@@ -103,6 +106,7 @@ export class PersistentLRUCache {
     // L1: in-memory lookup.
     const node = this.entries.get(key);
     if (node) {
+      log(`L1 cache hit: ${key}`);
       this.promote(node);
       return node.value;
     }
@@ -160,6 +164,7 @@ export class PersistentLRUCache {
    */
   async delete(key: string): Promise<void> {
     if (this.ready !== true) await this.ready;
+    log(`Cache delete: ${key}`);
 
     // Remove from in-memory LRU.
     const node = this.entries.get(key);
@@ -198,6 +203,7 @@ export class PersistentLRUCache {
    */
   private async loadFromDisk(key: string): Promise<ISRCacheEntry | undefined> {
     try {
+      log(`L2 disk load: ${key}`);
       const hash = this.hashPathname(key);
       const path = this.entryPath(hash);
       const raw = new Uint8Array(await Bun.file(path).arrayBuffer());
@@ -245,6 +251,7 @@ export class PersistentLRUCache {
     const encoded = encode(value);
     await this.ensureDir();
     await Bun.write(this.entryPath(hash), encoded);
+    log(`Persisted to disk: ${key}`);
     this.scheduleIndexWrite();
   }
 
@@ -328,6 +335,7 @@ export class PersistentLRUCache {
   private evictOverBudget(): void {
     while (this.currentBytes > this.maxByteSize && this.entries.size > 0) {
       const evicted = this.evictLast();
+      log(`LRU evicted from memory: ${evicted.key} (${evicted.size} bytes)`);
       this.entries.delete(evicted.key);
       this.currentBytes -= evicted.size;
       // Entry stays on disk — do NOT remove from diskKeys.
@@ -353,6 +361,7 @@ export class PersistentLRUCache {
 
     for (const oldId of manifest.buildIds) {
       if (oldId === this.buildId) continue;
+      log(`Vacuuming old build: ${oldId}`);
       await rm(join(this.cacheDir, oldId), { recursive: true, force: true });
     }
 
@@ -388,7 +397,9 @@ export class PersistentLRUCache {
 
     // Populate diskKeys and hashIndex from the persisted index.
     // Index format: { hash: pathname }
-    for (const [hash, pathname] of Object.entries(index)) {
+    const entries = Object.entries(index);
+    log(`Restoring ${entries.length} entries from disk index`);
+    for (const [hash, pathname] of entries) {
       this.diskKeys.add(pathname);
       this.hashIndex.set(pathname, hash);
     }
@@ -399,6 +410,7 @@ export class PersistentLRUCache {
 
     // Pre-fill in-memory LRU from disk entries up to maxByteSize.
     // Uses loadFromDisk() so concurrent get() calls deduplicate.
+    let preFilled = 0;
     for (const pathname of Object.values(index)) {
       // Already loaded by a concurrent get() — skip.
       if (this.entries.has(pathname)) continue;
@@ -418,6 +430,9 @@ export class PersistentLRUCache {
       const load = this.loadFromDisk(pathname);
       this.pendingLoads.set(pathname, load);
       await load;
+      preFilled++;
     }
+
+    log(`Pre-filled ${preFilled} entries into memory`);
   }
 }

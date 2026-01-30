@@ -62,6 +62,9 @@ ISR only applies to `GET` requests whose responses include an `s-maxage` directi
 
 - `PORT` — Override the server port (default: from Astro config or `4321`)
 - `HOST` — Override the server hostname
+- `DEBUG` — Enable debug logging via the [`debug`](https://www.npmjs.com/package/debug) package. Use `DEBUG=@wyattjoh/astro-bun-adapter:*` to enable all adapter logs, or target specific subsystems:
+  - `@wyattjoh/astro-bun-adapter:isr` — ISR cache hits, misses, revalidations, and bypasses
+  - `@wyattjoh/astro-bun-adapter:cache` — LRU cache internals (evictions, disk persistence, restore)
 
 ## Acknowledgements
 

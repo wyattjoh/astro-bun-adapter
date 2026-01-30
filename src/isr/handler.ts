@@ -1,6 +1,9 @@
 import { parse as parseCacheControl } from "cache-control-parser";
+import debug from "debug";
 import type { ISRCacheEntry, ISRHandler } from "../types.ts";
 import { PersistentLRUCache } from "./cache.ts";
+
+const log = debug("@wyattjoh/astro-bun-adapter:isr");
 
 function buildCacheEntry(
   response: Response,
@@ -56,6 +59,9 @@ function renderToEntry(
       const body = new Uint8Array(buf);
       const entry = buildCacheEntry(response, body);
       if (entry) {
+        log(
+          `ISR cached ${pathname} (s-maxage=${entry.sMaxAge}, swr=${entry.swr})`
+        );
         await cache.set(pathname, entry);
       }
       return entry;
@@ -90,6 +96,7 @@ export function createISRHandler(
 
       // Fresh — within s-maxage, serve directly from cache.
       if (elapsed < entry.sMaxAge * 1000) {
+        log(`ISR cache HIT for ${pathname}`);
         return responseFromEntry(entry, "HIT");
       }
 
@@ -97,8 +104,10 @@ export function createISRHandler(
       // cached response immediately and kick off a background revalidation
       // (at most one per path at a time).
       if (elapsed < (entry.sMaxAge + entry.swr) * 1000) {
+        log(`ISR cache STALE for ${pathname}, serving stale`);
         if (!revalidating.has(pathname)) {
           revalidating.add(pathname);
+          log(`ISR revalidating ${pathname}`);
           const result = renderToEntry(
             new Request(request.url, request),
             handler,
@@ -115,11 +124,13 @@ export function createISRHandler(
 
       // Beyond the SWR window — discard the stale entry and fall through
       // to a full re-render below.
+      log(`ISR expired entry evicted for ${pathname}`);
       await cache.delete(pathname);
     }
 
     // Cache miss — render via SSR, deduplicating concurrent requests for
     // the same pathname so only one render is in-flight at a time.
+    log(`ISR cache MISS for ${pathname}`);
     const pending = inflight.get(pathname);
     if (!pending) {
       const result = renderToEntry(request, handler, cache, pathname, "MISS");
@@ -135,6 +146,7 @@ export function createISRHandler(
     if (cached) return responseFromEntry(cached, "MISS");
 
     // Not cacheable — fall through to direct SSR.
+    log(`ISR BYPASS for ${pathname} (not cacheable)`);
     const response = await handler(request);
     response.headers.set("x-astro-cache", "BYPASS");
     return response;
