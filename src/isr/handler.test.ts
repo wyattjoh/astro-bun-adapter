@@ -1,5 +1,8 @@
-import { describe, expect, mock, test } from "bun:test";
-import { createISRHandler } from "./isr.ts";
+import { afterEach, describe, expect, mock, test } from "bun:test";
+import { rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { createISRHandler } from "./handler.ts";
 
 function makeHandler(
   headers: Record<string, string> = {},
@@ -16,10 +19,28 @@ function request(path: string) {
   return new Request(`http://localhost${path}`);
 }
 
+let testDir: string;
+
+afterEach(() => {
+  if (testDir) {
+    rmSync(testDir, { recursive: true, force: true });
+  }
+});
+
+function cacheDir() {
+  testDir = join(
+    tmpdir(),
+    `isr-test-${Date.now()}-${Math.random().toString(36).slice(2)}`
+  );
+  return testDir;
+}
+
+const BUILD_ID = "test-build-id";
+
 describe("createISRHandler", () => {
   test("cache miss — calls handler, returns SSR response", async () => {
     const handler = makeHandler();
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     const res = await isr(request("/page"), "/page");
 
@@ -30,7 +51,7 @@ describe("createISRHandler", () => {
 
   test("cacheable response populates cache (fresh hit)", async () => {
     const handler = makeHandler({ "cache-control": "s-maxage=60" }, "cached");
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     const first = await isr(request("/page"), "/page");
     // Consume the body so the cache entry is fully built.
@@ -48,7 +69,7 @@ describe("createISRHandler", () => {
       { "cache-control": "max-age=60" },
       "not cached"
     );
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     await (await isr(request("/page"), "/page")).text();
     await (await isr(request("/page"), "/page")).text();
@@ -61,7 +82,7 @@ describe("createISRHandler", () => {
       { "cache-control": "s-maxage=0" },
       "zero maxage"
     );
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     await (await isr(request("/page"), "/page")).text();
     await (await isr(request("/page"), "/page")).text();
@@ -80,7 +101,7 @@ describe("createISRHandler", () => {
         },
       });
     });
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     // Populate cache.
     const first = await isr(request("/page"), "/page");
@@ -109,7 +130,7 @@ describe("createISRHandler", () => {
       { "cache-control": "s-maxage=1, stale-while-revalidate=1" },
       "body"
     );
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     const first = await isr(request("/page"), "/page");
     await first.text();
@@ -131,7 +152,7 @@ describe("createISRHandler", () => {
         headers: { "cache-control": "s-maxage=60" },
       });
     });
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     // Fire two concurrent requests to the same path.
     const [first, second] = await Promise.all([
@@ -158,7 +179,7 @@ describe("createISRHandler", () => {
         },
       });
     });
-    const isr = createISRHandler(handler, 1024 * 1024);
+    const isr = createISRHandler(handler, 1024 * 1024, cacheDir(), BUILD_ID);
 
     // Populate cache.
     const first = await isr(request("/page"), "/page");

@@ -17,6 +17,8 @@ export interface AdapterOptions {
    * Absolute `file://` URL to `dist/server/`. Same rationale as {@link client}.
    */
   server: string;
+  /** Absolute filesystem path to `dist/server/.astro-bun-adapter/`. */
+  adapterDir: string;
   /** Name of the assets directory (default `_astro`). */
   assets: string;
   /**
@@ -49,16 +51,22 @@ export interface ISRCacheEntry {
 export interface ISROptions {
   /** Maximum byte size of the LRU cache (based on cached response body sizes). */
   maxByteSize: number;
+  /** Directory for persistent ISR cache storage. */
+  cacheDir: string;
 }
 
+/** Pre-computed response headers for a static file. */
 export interface ManifestEntry {
-  contentType: string | undefined;
-  cacheControl: string;
-  etag: string;
-  size: number;
+  headers: Record<string, string>;
 }
 
 export type StaticManifest = Record<string, ManifestEntry>;
+
+/** An ISR request handler that takes a Request and pathname, returning a Response. */
+export type ISRHandler = (
+  request: Request,
+  pathname: string
+) => Promise<Response>;
 
 /** The exports returned by `createExports()` in the server entrypoint. */
 export interface ServerExports {

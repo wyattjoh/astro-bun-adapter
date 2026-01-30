@@ -50,7 +50,7 @@
   ],
   "dependencies": {
     "cache-control-parser": "^2.0.6",
-    "lru-cache": "^11.2.5",
+    "cbor2": "^2.2.1",
     "mrmime": "^2.0.0"
   },
   "devDependencies": {

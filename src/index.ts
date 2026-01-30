@@ -1,3 +1,7 @@
+import { randomUUID } from "node:crypto";
+import { mkdir, writeFile } from "node:fs/promises";
+import { join } from "node:path";
+import { fileURLToPath } from "node:url";
 import type {
   AstroAdapter,
   AstroConfig,
@@ -53,7 +57,12 @@ interface BunAdapterConfig {
    * // Custom cache byte size (100 MB)
    * bunAdapter({ isr: { maxByteSize: 100 * 1024 * 1024 } })
    */
-  isr?: boolean | { maxByteSize?: number };
+  isr?:
+    | boolean
+    | {
+        maxByteSize?: number;
+        cacheDir?: string;
+      };
 }
 
 export default function bunAdapter(
@@ -61,6 +70,7 @@ export default function bunAdapter(
 ): AstroIntegration {
   let config: AstroConfig | undefined;
   let command: string | undefined;
+  let adapterDir: string | undefined;
   let routeToHeaders: RouteToHeaders | undefined;
 
   return {
@@ -96,22 +106,28 @@ export default function bunAdapter(
       "astro:config:done": ({ setAdapter, config: doneConfig }) => {
         config = doneConfig;
         const isDevMode = command === "dev";
+        const isrConfig =
+          typeof adapterConfig?.isr === "object" ? adapterConfig.isr : {};
+        adapterDir = join(
+          fileURLToPath(new URL(doneConfig.build.server)),
+          ".astro-bun-adapter"
+        );
         setAdapter(
           getAdapter({
             host: doneConfig.server.host,
             port: doneConfig.server.port,
             client: doneConfig.build.client.toString(),
             server: doneConfig.build.server.toString(),
+            adapterDir,
             assets: doneConfig.build.assets,
             // ISR is disabled in dev mode — it only applies to production builds
             // where SSR responses can be cached based on s-maxage / stale-while-revalidate.
             isr:
               !isDevMode && adapterConfig?.isr
                 ? {
-                    maxByteSize:
-                      (typeof adapterConfig.isr === "object"
-                        ? adapterConfig.isr.maxByteSize
-                        : undefined) ?? 50 * 1024 * 1024, // 50 MB
+                    maxByteSize: isrConfig.maxByteSize ?? 50 * 1024 * 1024,
+                    cacheDir:
+                      isrConfig.cacheDir ?? join(adapterDir, "isr-cache"),
                   }
                 : false,
           })
@@ -121,31 +137,38 @@ export default function bunAdapter(
         routeToHeaders = experimentalRouteToHeaders;
       },
       "astro:build:done": async () => {
-        if (!config) return;
+        if (!config || !adapterDir) return;
 
         const clientDir = new URL(config.build.client, config.outDir);
-        const serverDir = new URL(config.build.server, config.outDir);
-        await generateStaticManifest(
-          clientDir.pathname,
-          serverDir.pathname,
-          config.build.assets
-        );
+        await mkdir(adapterDir, { recursive: true });
 
+        // Serialize routeToHeaders (e.g. CSP) so the manifest can attach
+        // extra headers directly to matching static file entries.
+        let serializedRouteHeaders:
+          | Record<string, Record<string, string>>
+          | undefined;
         if (routeToHeaders && routeToHeaders.size > 0) {
-          const { writeFile } = await import("node:fs/promises");
-          const { join } = await import("node:path");
-          const headersPath = join(serverDir.pathname, "_static-headers.json");
-          // Serialize the Map<string, HeaderPayload> to a JSON-friendly format.
-          const serialized: Record<string, Record<string, string>> = {};
+          serializedRouteHeaders = {};
           for (const [route, payload] of routeToHeaders) {
             const headers: Record<string, string> = {};
             payload.headers.forEach((value, key) => {
               headers[key] = value;
             });
-            serialized[route] = headers;
+            serializedRouteHeaders[route] = headers;
           }
-          await writeFile(headersPath, JSON.stringify(serialized));
         }
+
+        await generateStaticManifest(
+          clientDir.pathname,
+          adapterDir,
+          config.build.assets,
+          serializedRouteHeaders
+        );
+
+        // Write a unique build ID so the server can namespace its ISR cache
+        // per build, allowing old caches to be vacuumed on mounted volumes.
+        const buildId = randomUUID();
+        await writeFile(join(adapterDir, "build-id"), buildId);
       },
     },
   };

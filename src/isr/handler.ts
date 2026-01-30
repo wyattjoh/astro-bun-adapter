@@ -1,6 +1,6 @@
 import { parse as parseCacheControl } from "cache-control-parser";
-import { LRUCache } from "lru-cache";
-import type { ISRCacheEntry } from "./types.ts";
+import type { ISRCacheEntry, ISRHandler } from "../types.ts";
+import { PersistentLRUCache } from "./cache.ts";
 
 function buildCacheEntry(
   response: Response,
@@ -45,20 +45,18 @@ interface RenderResult {
 function renderToEntry(
   request: Request,
   handler: (request: Request) => Promise<Response>,
-  cache: LRUCache<string, ISRCacheEntry>,
+  cache: PersistentLRUCache,
   pathname: string,
   cacheStatus: CacheStatus
 ): RenderResult {
   const done = handler(request).then((response) => {
     response.headers.set("x-astro-cache", cacheStatus);
     const clone = response.clone();
-    const entryPromise = clone.arrayBuffer().then((buf) => {
+    const entryPromise = clone.arrayBuffer().then(async (buf) => {
       const body = new Uint8Array(buf);
       const entry = buildCacheEntry(response, body);
       if (entry) {
-        cache.set(pathname, entry, {
-          ttl: (entry.sMaxAge + entry.swr) * 1000,
-        });
+        await cache.set(pathname, entry);
       }
       return entry;
     });
@@ -73,17 +71,20 @@ function renderToEntry(
 
 export function createISRHandler(
   handler: (request: Request) => Promise<Response>,
-  maxByteSize: number
-): (request: Request, pathname: string) => Promise<Response> {
-  const cache = new LRUCache<string, ISRCacheEntry>({
-    maxSize: maxByteSize,
-    sizeCalculation: (entry) => entry.body.byteLength,
+  maxByteSize: number,
+  cacheDir: string,
+  buildId: string
+): ISRHandler {
+  const cache = new PersistentLRUCache({
+    maxByteSize,
+    cacheDir,
+    buildId,
   });
   const revalidating = new Set<string>();
   const inflight = new Map<string, Promise<ISRCacheEntry | undefined>>();
 
   return async (request, pathname) => {
-    const entry = cache.get(pathname);
+    const entry = await cache.get(pathname);
     if (entry) {
       const elapsed = Date.now() - entry.cachedAt;
 
@@ -114,7 +115,7 @@ export function createISRHandler(
 
       // Beyond the SWR window — discard the stale entry and fall through
       // to a full re-render below.
-      cache.delete(pathname);
+      await cache.delete(pathname);
     }
 
     // Cache miss — render via SSR, deduplicating concurrent requests for

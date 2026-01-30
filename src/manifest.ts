@@ -36,13 +36,29 @@ async function walk(dir: string): Promise<string[]> {
   return files;
 }
 
+/**
+ * Derive the route pathname from a static file path.
+ * e.g. `/about/index.html` → `/about`, `/index.html` → `/`, `/about.html` → `/about`
+ */
+function filePathToRoute(filePath: string): string {
+  if (filePath.endsWith("/index.html")) {
+    const route = filePath.slice(0, -"/index.html".length);
+    return route || "/";
+  }
+  if (filePath.endsWith(".html")) {
+    return filePath.slice(0, -".html".length);
+  }
+  return filePath;
+}
+
 // Runs during astro:build:done (after client build). Walks dist/client/ and
 // writes dist/static-manifest.json with pre-computed headers for each file.
 // Must use node:fs/promises (not Bun APIs) since build hooks run under Node.
 export async function generateStaticManifest(
   clientDir: string,
   outDir: string,
-  assetsPrefix: string
+  assetsPrefix: string,
+  routeHeaders?: Record<string, Record<string, string>>
 ): Promise<void> {
   const files = await walk(clientDir);
   const manifest: StaticManifest = {};
@@ -55,12 +71,15 @@ export async function generateStaticManifest(
         .digest("hex")
         .slice(0, 16);
       const pathname = `/${relative(clientDir, filePath)}`;
-      const entry: ManifestEntry = {
-        contentType: lookup(filePath) ?? undefined,
-        cacheControl: getCacheControl(pathname, assetsPrefix),
-        etag: `"${hash}"`,
-        size: content.byteLength,
+      const contentType = lookup(filePath);
+      const headers: Record<string, string> = {
+        ...routeHeaders?.[filePathToRoute(pathname)],
+        "Cache-Control": getCacheControl(pathname, assetsPrefix),
+        ETag: `"${hash}"`,
+        "Content-Length": String(content.byteLength),
       };
+      if (contentType) headers["Content-Type"] = contentType;
+      const entry: ManifestEntry = { headers };
       return [pathname, entry] as const;
     })
   );

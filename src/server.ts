@@ -4,8 +4,13 @@ import { fileURLToPath } from "node:url";
 import type { SSRManifest } from "astro";
 import { App } from "astro/app";
 import { setGetEnv } from "astro/env/setup";
-import { createISRHandler } from "./isr.ts";
-import type { AdapterOptions, ManifestEntry, ServerExports } from "./types.ts";
+import { createISRHandler } from "./isr/handler.ts";
+import type {
+  AdapterOptions,
+  ISRHandler,
+  ManifestEntry,
+  ServerExports,
+} from "./types.ts";
 
 // Required for astro:env/server to resolve env vars at runtime.
 setGetEnv((key) => process.env[key]);
@@ -34,16 +39,23 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
 
   // Resolve dirs from the file:// URLs passed through adapter args.
   const clientDir = fileURLToPath(new URL(options.client));
-  const serverDir = fileURLToPath(new URL(options.server));
-  const manifestPath = join(serverDir, "static-manifest.json");
+  const { adapterDir } = options;
+  const manifestPath = join(adapterDir, "static-manifest.json");
   const staticManifest = new Map<string, ManifestEntry>(
     Object.entries(JSON.parse(readFileSync(manifestPath, "utf-8")))
   );
 
   // ISR handler — only allocated when enabled.
-  const isr = options.isr
-    ? createISRHandler(handler, options.isr.maxByteSize)
-    : undefined;
+  let isr: ISRHandler | undefined;
+  if (options.isr) {
+    const buildId = readFileSync(join(adapterDir, "build-id"), "utf-8").trim();
+    isr = createISRHandler(
+      handler,
+      options.isr.maxByteSize,
+      options.isr.cacheDir,
+      buildId
+    );
+  }
 
   const port = Number(process.env.PORT || options.port || 4321);
   const host =
@@ -63,20 +75,13 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
       const meta = staticManifest.get(pathname);
 
       if (meta) {
-        if (request.headers.get("if-none-match") === meta.etag) {
+        if (request.headers.get("if-none-match") === meta.headers.ETag) {
           return new Response(null, { status: 304 });
         }
 
-        const headers: Record<string, string> = {
-          "Cache-Control": meta.cacheControl,
-          ETag: meta.etag,
-          "Content-Length": String(meta.size),
-        };
-        if (meta.contentType) headers["Content-Type"] = meta.contentType;
-
         return new Response(Bun.file(join(clientDir, pathname.slice(1))), {
           status: 200,
-          headers,
+          headers: meta.headers,
         });
       }
 

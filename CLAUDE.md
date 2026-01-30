@@ -25,7 +25,7 @@ Source files in `src/`:
 - **`index.ts`** — The Astro integration entry point. Exports `bunAdapter()` which hooks into Astro's build lifecycle: configures build settings at `astro:config:setup`, registers the adapter at `astro:config:done`, and generates the static manifest at `astro:build:done`.
 - **`server.ts`** — The runtime server entrypoint (referenced by `serverEntrypoint` in the adapter). `createExports()` provides the SSR `handler` using Astro's Web-standard `App` (not `NodeApp`). `start()` boots `Bun.serve` — looks up requests against the static manifest for direct file serving with ETag/304 support, falls back to SSR. Integrates ISR when enabled.
 - **`isr.ts`** — ISR (Incremental Static Regeneration) runtime. Uses an LRU cache keyed by pathname. Respects `s-maxage` and `stale-while-revalidate` from `Cache-Control` headers. Deduplicates concurrent requests for the same path.
-- **`manifest.ts`** — Build-time utility. Walks `dist/client/`, hashes files (SHA-256, truncated), and writes `dist/server/static-manifest.json`. Uses `node:fs/promises` and `node:crypto` because Astro build hooks run under Node, not Bun.
+- **`manifest.ts`** — Build-time utility. Walks `dist/client/`, hashes files (SHA-256, truncated), and writes `dist/server/.astro-bun-adapter/static-manifest.json`. Uses `node:fs/promises` and `node:crypto` because Astro build hooks run under Node, not Bun.
 - **`types.ts`** — Shared types (`AdapterOptions`, `ManifestEntry`, `StaticManifest`, `ISRCacheEntry`).
 
 ## Key Design Decisions
