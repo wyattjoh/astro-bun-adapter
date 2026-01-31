@@ -56,7 +56,7 @@ To customize ISR options:
 adapter: bun({
   isr: {
     maxByteSize: 100 * 1024 * 1024, // In-memory budget (default: 50 MB)
-    cacheDir: "isr-cache",           // Disk cache directory (default: "isr-cache")
+    cacheDir: "/tmp/my-cache",       // Disk cache directory (default: dist/server/.astro-bun-adapter/isr-cache)
     preFillMemoryCache: false,       // Load disk cache into memory on startup (default: false)
   },
 }),
