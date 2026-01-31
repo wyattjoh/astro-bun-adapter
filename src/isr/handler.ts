@@ -13,22 +13,6 @@ const log = debug("@wyattjoh/astro-bun-adapter:isr");
 const IMAGE_CACHE_CONTROL =
   "public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400";
 
-/**
- * If `cacheKey` matches the image endpoint route, replace the `cache-control`
- * header in the tuple array so `buildCacheEntry` sees `s-maxage`.
- */
-function applyImageCacheOverride(
-  headers: [string, string][],
-  cacheKey: string,
-  imageEndpointRoute: string
-): [string, string][] {
-  if (!cacheKey.startsWith(imageEndpointRoute)) return headers;
-
-  return headers.map(([name, value]) =>
-    name === "cache-control" ? [name, IMAGE_CACHE_CONTROL] : [name, value]
-  );
-}
-
 function buildCacheEntry(
   headers: [string, string][],
   status: number,
@@ -82,14 +66,23 @@ function renderToEntry(
   const done = handler(request).then((response) => {
     const clone = response.clone();
     // Capture clean headers and status before mutating the response with x-astro-cache.
-    const rawHeaders: [string, string][] = Array.from(clone.headers.entries());
-    const headers = applyImageCacheOverride(
-      rawHeaders,
-      cacheKey,
-      imageEndpointRoute
-    );
+    const headers: [string, string][] = Array.from(clone.headers.entries());
+
+    // When this is the image endpoint, override the cache-control header to ensure that
+    // it is cacheable by ISR.
+    if (
+      cacheKey === imageEndpointRoute ||
+      cacheKey.startsWith(imageEndpointRoute + "?")
+    ) {
+      for (let i = 0; i < headers.length; i++) {
+        if (headers[i][0] === "cache-control") {
+          headers[i] = [headers[i][0], IMAGE_CACHE_CONTROL];
+          break;
+        }
+      }
+    }
     const { status } = clone;
-    response.headers.set("x-astro-cache", cacheStatus);
+
     const entryPromise = clone.arrayBuffer().then(async (buf) => {
       const body = new Uint8Array(buf);
       const entry = buildCacheEntry(headers, status, body);
@@ -101,6 +94,10 @@ function renderToEntry(
       }
       return entry;
     });
+
+    // Add the cache status header to the original response.
+    response.headers.set("x-astro-cache", cacheStatus);
+
     return { response, entryPromise };
   });
 
@@ -111,7 +108,7 @@ function renderToEntry(
 }
 
 export function createISRHandler(
-  handler: (request: Request) => Promise<Response>,
+  origin: (request: Request) => Promise<Response>,
   maxByteSize: number,
   cacheDir: string,
   buildId: string,
@@ -127,7 +124,7 @@ export function createISRHandler(
   const revalidating = new Set<string>();
   const inflight = new Map<string, Promise<ISRCacheEntry | undefined>>();
 
-  const isrHandler = (async (request, cacheKey) => {
+  const handler = (async (request, cacheKey) => {
     const entry = await cache.get(cacheKey);
     if (entry) {
       const elapsed = Date.now() - entry.cachedAt;
@@ -148,7 +145,7 @@ export function createISRHandler(
           log(`ISR revalidating ${cacheKey}`);
           const result = renderToEntry(
             new Request(request.url, request),
-            handler,
+            origin,
             cache,
             cacheKey,
             "STALE",
@@ -174,7 +171,7 @@ export function createISRHandler(
     if (!pending) {
       const result = renderToEntry(
         request,
-        handler,
+        origin,
         cache,
         cacheKey,
         "MISS",
@@ -193,12 +190,12 @@ export function createISRHandler(
 
     // Not cacheable — fall through to direct SSR.
     log(`ISR BYPASS for ${cacheKey} (not cacheable)`);
-    const response = await handler(request);
+    const response = await origin(request);
     response.headers.set("x-astro-cache", "BYPASS");
     return response;
   }) as ISRHandler;
 
-  isrHandler.shutdown = () => cache.save();
+  handler.shutdown = () => cache.save();
 
-  return isrHandler;
+  return handler;
 }
