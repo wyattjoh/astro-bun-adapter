@@ -1,5 +1,5 @@
 import { readFileSync } from "node:fs";
-import { isAbsolute, join } from "node:path";
+import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { SSRManifest } from "astro";
 import { App } from "astro/app";
@@ -86,9 +86,7 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
   let isr: ISRHandler | undefined;
   if (options.isr) {
     const buildId = readFileSync(join(adapterDir, "build-id"), "utf-8").trim();
-    const cacheDir = isAbsolute(options.isr.cacheDir)
-      ? options.isr.cacheDir
-      : join(adapterDir, options.isr.cacheDir);
+    const cacheDir = options.isr.cacheDir ?? join(adapterDir, "isr-cache");
     isr = createISRHandler({
       origin: handler,
       maxByteSize: options.isr.maxByteSize,

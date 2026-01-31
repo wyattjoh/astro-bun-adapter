@@ -39,6 +39,36 @@ function getAdapter(options: AdapterOptions): AstroAdapter {
   };
 }
 
+/**
+ * User-facing ISR (Incremental Static Regeneration) configuration options.
+ * All properties are optional — omitted values use their documented defaults.
+ */
+export interface ISRConfig {
+  /**
+   * Maximum byte size of the in-memory LRU cache. Entries evicted from memory
+   * are persisted to disk and reloaded on demand.
+   *
+   * @default 50 * 1024 * 1024 // (50 MB)
+   */
+  maxByteSize?: number;
+
+  /**
+   * Absolute path to the directory for persistent ISR cache storage.
+   *
+   * @default "<server directory>/.astro-bun-adapter/isr-cache"
+   */
+  cacheDir?: string;
+
+  /**
+   * Whether to pre-fill the in-memory LRU cache from disk at startup. When
+   * `false`, the disk index is restored for L2 fallback but entries are only
+   * loaded into memory on first access.
+   *
+   * @default false
+   */
+  preFillMemoryCache?: boolean;
+}
+
 /** User-facing configuration for the Bun adapter. */
 interface BunAdapterConfig {
   /**
@@ -58,13 +88,7 @@ interface BunAdapterConfig {
    * // Custom cache byte size (100 MB)
    * bunAdapter({ isr: { maxByteSize: 100 * 1024 * 1024 } })
    */
-  isr?:
-    | boolean
-    | {
-        maxByteSize?: number;
-        cacheDir?: string;
-        preFillMemoryCache?: boolean;
-      };
+  isr?: boolean | ISRConfig;
 }
 
 /** Create the Astro integration that configures and registers the Bun adapter. */
@@ -109,7 +133,6 @@ export default function bunAdapter(
       "astro:config:done": ({ setAdapter, config: doneConfig }) => {
         config = doneConfig;
         const isDevMode = command === "dev";
-        type ISRConfig = NonNullable<Exclude<BunAdapterConfig["isr"], boolean>>;
         const isrConfig: ISRConfig =
           typeof adapterConfig?.isr === "object" ? adapterConfig.isr : {};
         const relativeAdapterDir = ".astro-bun-adapter";
@@ -134,7 +157,7 @@ export default function bunAdapter(
               !isDevMode && adapterConfig?.isr
                 ? {
                     maxByteSize: isrConfig.maxByteSize ?? 50 * 1024 * 1024,
-                    cacheDir: isrConfig.cacheDir ?? "isr-cache",
+                    cacheDir: isrConfig.cacheDir,
                     preFillMemoryCache: isrConfig.preFillMemoryCache ?? false,
                   }
                 : false,

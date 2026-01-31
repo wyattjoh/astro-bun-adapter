@@ -51,15 +51,8 @@ export interface ISRCacheEntry {
 
 /** Resolved ISR configuration passed to the server entrypoint. */
 export interface ISROptions {
-  /** Maximum byte size of the LRU cache (based on cached response body sizes). */
   maxByteSize: number;
-  /** Directory for persistent ISR cache storage. */
-  cacheDir: string;
-  /**
-   * Whether to pre-fill the in-memory LRU cache from disk at startup.
-   * When `false` (default), the disk index is restored for L2 fallback but
-   * entries are only loaded into memory on first access.
-   */
+  cacheDir?: string;
   preFillMemoryCache: boolean;
 }
 
