@@ -1,3 +1,10 @@
+## [1.2.1](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.2.0...v1.2.1) (2026-01-31)
+
+
+### Bug Fixes
+
+* defer ISR cacheDir default to server runtime ([963719a](https://github.com/wyattjoh/astro-bun-adapter/commit/963719ab5c36d5904e06eb9c531606eb21e78ca6))
+
 # [1.2.0](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.1.0...v1.2.0) (2026-01-31)
 
 
