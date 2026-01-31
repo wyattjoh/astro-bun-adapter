@@ -30,14 +30,14 @@ const BUILD_ID = "test-build-id";
 describe("createISRHandler", () => {
   test("cache miss — calls handler, returns SSR response", async () => {
     const handler = makeHandler();
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     const res = await isr(request("/page"), "/page");
 
@@ -48,14 +48,14 @@ describe("createISRHandler", () => {
 
   test("cacheable response populates cache (fresh hit)", async () => {
     const handler = makeHandler({ "cache-control": "s-maxage=60" }, "cached");
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     const first = await isr(request("/page"), "/page");
     // Consume the body so the cache entry is fully built.
@@ -73,14 +73,14 @@ describe("createISRHandler", () => {
       { "cache-control": "max-age=60" },
       "not cached"
     );
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     await (await isr(request("/page"), "/page")).text();
     await (await isr(request("/page"), "/page")).text();
@@ -93,14 +93,14 @@ describe("createISRHandler", () => {
       { "cache-control": "s-maxage=0" },
       "zero maxage"
     );
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     await (await isr(request("/page"), "/page")).text();
     await (await isr(request("/page"), "/page")).text();
@@ -119,14 +119,14 @@ describe("createISRHandler", () => {
         },
       });
     });
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     // Populate cache.
     const first = await isr(request("/page"), "/page");
@@ -155,14 +155,14 @@ describe("createISRHandler", () => {
       { "cache-control": "s-maxage=1, stale-while-revalidate=1" },
       "body"
     );
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     const first = await isr(request("/page"), "/page");
     await first.text();
@@ -184,14 +184,14 @@ describe("createISRHandler", () => {
         headers: { "cache-control": "s-maxage=60" },
       });
     });
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     // Fire two concurrent requests to the same path.
     const [first, second] = await Promise.all([
@@ -218,14 +218,14 @@ describe("createISRHandler", () => {
         },
       });
     });
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     // Populate cache.
     const first = await isr(request("/page"), "/page");
@@ -250,14 +250,14 @@ describe("createISRHandler", () => {
       { "cache-control": "public, max-age=31536000" },
       "image-data"
     );
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     const first = await isr(
       request("/_image?href=foo.png&w=100"),
@@ -280,14 +280,14 @@ describe("createISRHandler", () => {
       { "cache-control": "public, max-age=31536000" },
       "not cached"
     );
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     await (await isr(request("/page"), "/page")).text();
     await (await isr(request("/page"), "/page")).text();
@@ -304,14 +304,14 @@ describe("createISRHandler", () => {
         headers: { "cache-control": "public, max-age=31536000" },
       });
     });
-    const isr = createISRHandler(
-      handler,
-      1024 * 1024,
-      testCacheDir(),
-      BUILD_ID,
-      false,
-      "/_image"
-    );
+    const isr = createISRHandler({
+      origin: handler,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
 
     const first = await isr(
       request("/_image?href=a.png&w=100"),

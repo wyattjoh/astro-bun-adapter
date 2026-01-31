@@ -38,6 +38,7 @@ class BoundaryNode {
   }
 }
 
+/** Configuration for the persistent two-tier LRU cache. */
 interface PersistentLRUCacheOptions {
   maxByteSize: number;
   cacheDir: string;
@@ -54,12 +55,12 @@ interface PersistentLRUCacheOptions {
  * Note: The cache does not enforce TTL. Expiration is handled externally by the
  * ISR handler, which checks `cachedAt + sMaxAge` on every read.
  *
- * Layout: FRONT (newest) <-> ... <-> BACK (oldest)
+ * Layout: HEAD (newest) <-> ... <-> TAIL (oldest)
  */
 export class PersistentLRUCache {
   private readonly entries = new Map<string, CacheNode>();
-  private readonly front: BoundaryNode;
-  private readonly back: BoundaryNode;
+  private readonly head: BoundaryNode;
+  private readonly tail: BoundaryNode;
   private currentBytes = 0;
   private ready: Promise<void> | true;
 
@@ -81,6 +82,8 @@ export class PersistentLRUCache {
 
   /** Whether the entries directory has been created. */
   private dirReady = false;
+  /** Whether the index needs to be written to disk. */
+  private indexDirty = false;
   /** Debounce timer for index writes. */
   private indexTimer: ReturnType<typeof setTimeout> | undefined;
   /** In-flight disk writes (drained by `save()`). */
@@ -100,11 +103,11 @@ export class PersistentLRUCache {
     this.entriesDir = join(options.cacheDir, options.buildId, "entries");
     this.indexPath = join(options.cacheDir, options.buildId, "index.json");
 
-    // Wire up boundary nodes: FRONT <-> BACK (empty list).
-    this.front = new BoundaryNode();
-    this.back = new BoundaryNode();
-    this.front.newer = this.back;
-    this.back.older = this.front;
+    // Wire up boundary nodes: HEAD <-> TAIL (empty list).
+    this.head = new BoundaryNode();
+    this.tail = new BoundaryNode();
+    this.head.newer = this.tail;
+    this.tail.older = this.head;
 
     this.ready = this.load();
   }
@@ -165,7 +168,7 @@ export class PersistentLRUCache {
     } else {
       const node = new CacheNode(key, value, size);
       this.entries.set(key, node);
-      this.insertAfterFront(node);
+      this.insertAfterHead(node);
       this.currentBytes += size;
     }
 
@@ -202,6 +205,7 @@ export class PersistentLRUCache {
       const removal = rm(this.entryPath(hash), { force: true }).catch(() => {});
       this.pendingWrites.add(removal);
       void removal.finally(() => this.pendingWrites.delete(removal));
+      this.indexDirty = true;
       this.scheduleIndexWrite();
     }
   }
@@ -244,7 +248,7 @@ export class PersistentLRUCache {
       const size = entry.body.byteLength;
       const node = new CacheNode(key, entry, size);
       this.entries.set(key, node);
-      this.insertAfterFront(node);
+      this.insertAfterHead(node);
       this.currentBytes += size;
       this.evictOverBudget();
 
@@ -283,6 +287,7 @@ export class PersistentLRUCache {
     await this.ensureDir();
     await Bun.write(this.entryPath(hash), encoded);
     log(`Persisted to disk: ${key}`);
+    this.indexDirty = true;
     this.scheduleIndexWrite();
   }
 
@@ -295,7 +300,7 @@ export class PersistentLRUCache {
 
   /** Schedule a debounced index write (coalesces rapid mutations). */
   private scheduleIndexWrite(): void {
-    if (this.indexTimer) return;
+    if (this.indexTimer || !this.indexDirty) return;
     this.indexTimer = setTimeout(() => {
       this.indexTimer = undefined;
       this.writeIndex().catch(() => {});
@@ -314,6 +319,8 @@ export class PersistentLRUCache {
 
   /** Write the hash → pathname index to disk. */
   private async writeIndex(): Promise<void> {
+    if (!this.indexDirty) return;
+
     const index: Record<string, string> = {};
     for (const [pathname, hash] of this.hashIndex) {
       if (this.diskKeys.has(pathname)) {
@@ -321,17 +328,18 @@ export class PersistentLRUCache {
       }
     }
     await Bun.write(this.indexPath, JSON.stringify(index));
+    this.indexDirty = false;
   }
 
   /**
-   * Place a node directly after the front boundary (newest position).
+   * Place a node directly after the head boundary (newest position).
    * @param node - The node to insert.
    */
-  private insertAfterFront(node: CacheNode): void {
-    node.older = this.front;
-    node.newer = this.front.newer;
-    this.front.newer.older = node;
-    this.front.newer = node;
+  private insertAfterHead(node: CacheNode): void {
+    node.older = this.head;
+    node.newer = this.head.newer;
+    this.head.newer.older = node;
+    this.head.newer = node;
   }
 
   /**
@@ -349,13 +357,13 @@ export class PersistentLRUCache {
    */
   private promote(node: CacheNode): void {
     this.detach(node);
-    this.insertAfterFront(node);
+    this.insertAfterHead(node);
   }
 
   /** Drop oldest entries from memory until within byte budget. They remain on disk. */
   private evictOverBudget(): void {
     while (this.currentBytes > this.maxByteSize && this.entries.size > 0) {
-      const oldest = this.back.older;
+      const oldest = this.tail.older;
       if (oldest instanceof BoundaryNode) break;
       this.detach(oldest);
       log(`LRU evicted from memory: ${oldest.key} (${oldest.size} bytes)`);
@@ -428,7 +436,6 @@ export class PersistentLRUCache {
       this.diskKeys.add(pathname);
       this.hashIndex.set(pathname, hash);
     }
-
     // Mark ready — get() can now serve disk fallback requests while
     // pre-fill proceeds in the background.
     this.ready = true;

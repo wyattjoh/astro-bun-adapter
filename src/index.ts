@@ -13,6 +13,7 @@ import type { AdapterOptions } from "./types.ts";
 
 export type { AdapterOptions } from "./types.ts";
 
+/** Build the Astro adapter descriptor with supported features and serialized options. */
 function getAdapter(options: AdapterOptions): AstroAdapter {
   return {
     name: "@wyattjoh/astro-bun-adapter",
@@ -66,6 +67,7 @@ interface BunAdapterConfig {
       };
 }
 
+/** Create the Astro integration that configures and registers the Bun adapter. */
 export default function bunAdapter(
   adapterConfig?: BunAdapterConfig
 ): AstroIntegration {

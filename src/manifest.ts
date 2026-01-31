@@ -4,7 +4,7 @@ import { join, relative } from "node:path";
 import { lookup } from "mrmime";
 import type { ManifestEntry, StaticManifest } from "./types.ts";
 
-// Assets files are content-hashed by Vite, so they're safe to cache forever.
+/** Return the appropriate Cache-Control header — immutable for Vite-hashed assets, 24h otherwise. */
 function getCacheControl(pathname: string, assetsPrefix: string): string {
   if (pathname.startsWith(`/${assetsPrefix}/`)) {
     return "public, max-age=31536000, immutable";
@@ -12,6 +12,7 @@ function getCacheControl(pathname: string, assetsPrefix: string): string {
   return "public, max-age=86400, must-revalidate";
 }
 
+/** Recursively collect all file paths under a directory. */
 async function walk(dir: string): Promise<string[]> {
   const files: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
@@ -51,9 +52,10 @@ function filePathToRoute(filePath: string): string {
   return filePath;
 }
 
-// Runs during astro:build:done (after client build). Walks dist/client/ and
-// writes dist/static-manifest.json with pre-computed headers for each file.
-// Must use node:fs/promises (not Bun APIs) since build hooks run under Node.
+/**
+ * Walk the client build directory and write a static manifest with pre-computed
+ * headers for each file. Must use `node:fs/promises` since build hooks run under Node.
+ */
 export async function generateStaticManifest(
   clientDir: string,
   outDir: string,
@@ -82,7 +84,10 @@ export async function generateStaticManifest(
         "Content-Length": String(content.byteLength),
       };
       if (contentType) headers["Content-Type"] = contentType;
-      const entry: ManifestEntry = { headers };
+      const entry: ManifestEntry = {
+        headers,
+        filePath: relative(clientDir, filePath),
+      };
       return [pathname, entry] as const;
     })
   );

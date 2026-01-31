@@ -40,11 +40,11 @@ export function buildImageCacheKey(
     const value = params.get(key);
     if (value !== null) normalized.set(key, value);
   }
-  return `${pathname}?${normalized.toString()}`;
+  const qs = normalized.toString();
+  return qs ? `${pathname}?${qs}` : pathname;
 }
 
-// Internal helper — creates a single App instance and derives both the
-// request handler and the app reference from it.
+/** Create a single App instance and derive both the request handler and the app reference from it. */
 function createApp(ssrManifest: SSRManifest) {
   const app = new App(ssrManifest);
 
@@ -59,16 +59,16 @@ function createApp(ssrManifest: SSRManifest) {
   return { app, handler };
 }
 
-// Called by the generated entry.mjs to extract the SSR request handler.
-// Uses the Web-standard App (not NodeApp) since Bun natively supports the
-// Fetch API — no Node http.IncomingMessage/ServerResponse conversion needed.
+/**
+ * Called by the generated `entry.mjs` to extract the SSR request handler.
+ * Uses the Web-standard App (not NodeApp) since Bun natively supports the Fetch API.
+ */
 export function createExports(ssrManifest: SSRManifest): ServerExports {
   const { handler } = createApp(ssrManifest);
   return { handler };
 }
 
-// Called by entry.mjs with the adapter args (see index.ts).
-// Owns the full server — static file serving + SSR fallback.
+/** Boot `Bun.serve` with static file serving, ETag/304 support, and optional ISR. */
 export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
   const { app, handler } = createApp(ssrManifest);
   const logger = app.getAdapterLogger();
@@ -89,14 +89,14 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
     const cacheDir = isAbsolute(options.isr.cacheDir)
       ? options.isr.cacheDir
       : join(adapterDir, options.isr.cacheDir);
-    isr = createISRHandler(
-      handler,
-      options.isr.maxByteSize,
+    isr = createISRHandler({
+      origin: handler,
+      maxByteSize: options.isr.maxByteSize,
       cacheDir,
       buildId,
-      options.isr.preFillMemoryCache,
-      options.imageEndpointRoute
-    );
+      preFillMemoryCache: options.isr.preFillMemoryCache,
+      imageEndpointRoute: options.imageEndpointRoute,
+    });
   }
 
   // Graceful shutdown — flush ISR cache to disk before exit.
@@ -140,13 +140,10 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
             return new Response(null, { status: 304, headers });
           }
 
-          return new Response(
-            Bun.file(join(clientDir, meta.filePath ?? pathname.slice(1))),
-            {
-              status: 200,
-              headers: meta.headers,
-            }
-          );
+          return new Response(Bun.file(join(clientDir, meta.filePath)), {
+            status: 200,
+            headers: meta.headers,
+          });
         }
       }
 

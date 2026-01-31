@@ -13,6 +13,7 @@ const log = debug("@wyattjoh/astro-bun-adapter:isr");
 const IMAGE_CACHE_CONTROL =
   "public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400";
 
+/** Parse `Cache-Control` from response headers and build an ISR cache entry if `s-maxage` is set. */
 function buildCacheEntry(
   headers: [string, string][],
   status: number,
@@ -36,8 +37,10 @@ function buildCacheEntry(
   };
 }
 
+/** Possible ISR cache states attached to responses via the `x-astro-cache` header. */
 type CacheStatus = "HIT" | "STALE" | "MISS" | "BYPASS";
 
+/** Reconstruct a `Response` from a cached entry, attaching the `x-astro-cache` header. */
 function responseFromEntry(
   entry: ISRCacheEntry,
   cacheStatus: CacheStatus
@@ -50,11 +53,13 @@ function responseFromEntry(
   return response;
 }
 
+/** The dual-promise result of an SSR render: a streaming response and a cache entry. */
 interface RenderResult {
   streaming: Promise<Response>;
   entry: Promise<ISRCacheEntry | undefined>;
 }
 
+/** Render a request via SSR, cache the result if eligible, and return both a streaming response and the cache entry promise. */
 function renderToEntry(
   request: Request,
   handler: (request: Request) => Promise<Response>,
@@ -72,7 +77,7 @@ function renderToEntry(
     // it is cacheable by ISR.
     if (
       cacheKey === imageEndpointRoute ||
-      cacheKey.startsWith(imageEndpointRoute + "?")
+      cacheKey.startsWith(`${imageEndpointRoute}?`)
     ) {
       for (let i = 0; i < headers.length; i++) {
         if (headers[i][0] === "cache-control") {
@@ -107,14 +112,26 @@ function renderToEntry(
   };
 }
 
-export function createISRHandler(
-  origin: (request: Request) => Promise<Response>,
-  maxByteSize: number,
-  cacheDir: string,
-  buildId: string,
-  preFillMemoryCache: boolean,
-  imageEndpointRoute: string
-): ISRHandler {
+/** Options for creating an ISR handler. */
+interface ISRHandlerOptions {
+  origin: (request: Request) => Promise<Response>;
+  maxByteSize: number;
+  cacheDir: string;
+  buildId: string;
+  preFillMemoryCache: boolean;
+  imageEndpointRoute: string;
+}
+
+/** Create an ISR handler with LRU caching, stale-while-revalidate, and request coalescing. */
+export function createISRHandler(options: ISRHandlerOptions): ISRHandler {
+  const {
+    origin,
+    maxByteSize,
+    cacheDir,
+    buildId,
+    preFillMemoryCache,
+    imageEndpointRoute,
+  } = options;
   const cache = new PersistentLRUCache({
     maxByteSize,
     cacheDir,

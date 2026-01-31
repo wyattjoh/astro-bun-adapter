@@ -85,7 +85,7 @@ describe("generateStaticManifest", () => {
     expect(manifest["/about"].headers.ETag).toBe(
       manifest["/about/index.html"].headers.ETag
     );
-    expect(manifest["/about/index.html"].filePath).toBeUndefined();
+    expect(manifest["/about/index.html"].filePath).toBe("about/index.html");
 
     // /index.html → route alias at /
     expect(manifest["/"]).toBeDefined();

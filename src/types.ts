@@ -66,8 +66,8 @@ export interface ISROptions {
 /** Pre-computed response headers for a static file. */
 export interface ManifestEntry {
   headers: Record<string, string>;
-  /** Relative file path within client dir. Only set for route aliases where the key differs from the file path. */
-  filePath?: string;
+  /** Relative file path within client dir. */
+  filePath: string;
 }
 
 export type StaticManifest = Record<string, ManifestEntry>;
