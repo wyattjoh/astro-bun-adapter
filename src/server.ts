@@ -102,7 +102,12 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
   // Graceful shutdown — flush ISR cache to disk before exit.
   if (isr) {
     const shutdown = () => {
-      isr.shutdown().finally(() => process.exit(0));
+      isr
+        .shutdown()
+        .catch((err: unknown) => {
+          console.error("ISR cache flush failed during shutdown:", err);
+        })
+        .finally(() => process.exit(0));
     };
     process.on("SIGTERM", shutdown);
     process.on("SIGINT", shutdown);
@@ -123,20 +128,26 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
     async fetch(request) {
       const url = new URL(request.url);
       const pathname = decodeURIComponent(url.pathname);
-      const meta = staticManifest.get(pathname);
 
-      if (meta) {
-        if (request.headers.get("if-none-match") === meta.headers.ETag) {
-          return new Response(null, { status: 304 });
-        }
+      if (request.method === "GET" || request.method === "HEAD") {
+        const meta = staticManifest.get(pathname);
 
-        return new Response(
-          Bun.file(join(clientDir, meta.filePath ?? pathname.slice(1))),
-          {
-            status: 200,
-            headers: meta.headers,
+        if (meta) {
+          if (request.headers.get("if-none-match") === meta.headers.ETag) {
+            const headers = new Headers(meta.headers);
+            headers.delete("Content-Length");
+            headers.delete("Content-Type");
+            return new Response(null, { status: 304, headers });
           }
-        );
+
+          return new Response(
+            Bun.file(join(clientDir, meta.filePath ?? pathname.slice(1))),
+            {
+              status: 200,
+              headers: meta.headers,
+            }
+          );
+        }
       }
 
       // ISR disabled or non-GET — passthrough to SSR.

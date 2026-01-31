@@ -1,4 +1,4 @@
-import { mkdir, readdir, rm } from "node:fs/promises";
+import { mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { decode, encode } from "cbor2";
 import debug from "debug";
@@ -390,23 +390,7 @@ export class PersistentLRUCache {
       await rm(join(this.cacheDir, oldId), { recursive: true, force: true });
     }
 
-    // Scan for orphaned directories not tracked in the manifest.
     await mkdir(this.cacheDir, { recursive: true });
-    try {
-      const entries = await readdir(this.cacheDir, { withFileTypes: true });
-      for (const entry of entries) {
-        if (!entry.isDirectory()) continue;
-        if (entry.name === this.buildId) continue;
-        log(`Vacuuming orphaned directory: ${entry.name}`);
-        await rm(join(this.cacheDir, entry.name), {
-          recursive: true,
-          force: true,
-        });
-      }
-    } catch {
-      // Cache directory may not exist yet — ignore.
-    }
-
     await Bun.write(manifestPath, JSON.stringify({ buildIds: [this.buildId] }));
   }
 

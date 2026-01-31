@@ -574,7 +574,7 @@ describe("PersistentLRUCache", () => {
       cache2.destroy();
     });
 
-    test("removes orphaned directories not in manifest", async () => {
+    test("preserves orphaned directories not in manifest", async () => {
       const dir = testCacheDir();
 
       // Create a cache to establish a manifest.
@@ -592,7 +592,7 @@ describe("PersistentLRUCache", () => {
       mkdirSync(join(dir, "orphaned-build"), { recursive: true });
       expect(existsSync(join(dir, "orphaned-build"))).toBe(true);
 
-      // Creating a new cache should clean up the orphan.
+      // Creating a new cache should NOT clean up the orphan.
       const cache2 = new PersistentLRUCache({
         maxByteSize: 1024,
         cacheDir: dir,
@@ -601,7 +601,7 @@ describe("PersistentLRUCache", () => {
       });
       await cache2.get("anything");
 
-      expect(existsSync(join(dir, "orphaned-build"))).toBe(false);
+      expect(existsSync(join(dir, "orphaned-build"))).toBe(true);
       expect(existsSync(join(dir, BUILD_ID))).toBe(false);
       expect(existsSync(join(dir, "new-build"))).toBe(true);
 
