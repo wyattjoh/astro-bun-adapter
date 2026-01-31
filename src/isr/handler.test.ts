@@ -35,7 +35,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     const res = await isr(request("/page"), "/page");
@@ -52,7 +53,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     const first = await isr(request("/page"), "/page");
@@ -76,7 +78,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     await (await isr(request("/page"), "/page")).text();
@@ -95,7 +98,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     await (await isr(request("/page"), "/page")).text();
@@ -120,7 +124,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     // Populate cache.
@@ -155,7 +160,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     const first = await isr(request("/page"), "/page");
@@ -183,7 +189,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     // Fire two concurrent requests to the same path.
@@ -216,7 +223,8 @@ describe("createISRHandler", () => {
       1024 * 1024,
       testCacheDir(),
       BUILD_ID,
-      false
+      false,
+      "/_image"
     );
 
     // Populate cache.
@@ -234,6 +242,108 @@ describe("createISRHandler", () => {
     ]);
 
     // 1 initial + 1 background revalidation = 2 total.
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  test("image endpoint response with only max-age gets cached via override", async () => {
+    const handler = makeHandler(
+      { "cache-control": "public, max-age=31536000" },
+      "image-data"
+    );
+    const isr = createISRHandler(
+      handler,
+      1024 * 1024,
+      testCacheDir(),
+      BUILD_ID,
+      false,
+      "/_image"
+    );
+
+    const first = await isr(
+      request("/_image?href=foo.png&w=100"),
+      "/_image?href=foo.png&w=100"
+    );
+    await first.text();
+
+    const second = await isr(
+      request("/_image?href=foo.png&w=100"),
+      "/_image?href=foo.png&w=100"
+    );
+
+    expect(handler).toHaveBeenCalledTimes(1);
+    expect(second.headers.get("x-astro-cache")).toBe("HIT");
+    expect(await second.text()).toBe("image-data");
+  });
+
+  test("non-image path with only max-age still bypasses cache", async () => {
+    const handler = makeHandler(
+      { "cache-control": "public, max-age=31536000" },
+      "not cached"
+    );
+    const isr = createISRHandler(
+      handler,
+      1024 * 1024,
+      testCacheDir(),
+      BUILD_ID,
+      false,
+      "/_image"
+    );
+
+    await (await isr(request("/page"), "/page")).text();
+    await (await isr(request("/page"), "/page")).text();
+
+    expect(handler).toHaveBeenCalledTimes(2);
+  });
+
+  test("different image query strings produce separate cache entries", async () => {
+    let callCount = 0;
+    const handler = mock(async (_request: Request) => {
+      callCount++;
+      return new Response(`image-${callCount}`, {
+        status: 200,
+        headers: { "cache-control": "public, max-age=31536000" },
+      });
+    });
+    const isr = createISRHandler(
+      handler,
+      1024 * 1024,
+      testCacheDir(),
+      BUILD_ID,
+      false,
+      "/_image"
+    );
+
+    const first = await isr(
+      request("/_image?href=a.png&w=100"),
+      "/_image?href=a.png&w=100"
+    );
+    await first.text();
+
+    const second = await isr(
+      request("/_image?href=b.png&w=200"),
+      "/_image?href=b.png&w=200"
+    );
+    await second.text();
+
+    // Two different image queries — handler should be called twice.
+    expect(handler).toHaveBeenCalledTimes(2);
+
+    // Each should now be cached independently.
+    const hitA = await isr(
+      request("/_image?href=a.png&w=100"),
+      "/_image?href=a.png&w=100"
+    );
+    expect(hitA.headers.get("x-astro-cache")).toBe("HIT");
+    expect(await hitA.text()).toBe("image-1");
+
+    const hitB = await isr(
+      request("/_image?href=b.png&w=200"),
+      "/_image?href=b.png&w=200"
+    );
+    expect(hitB.headers.get("x-astro-cache")).toBe("HIT");
+    expect(await hitB.text()).toBe("image-2");
+
+    // No additional handler calls.
     expect(handler).toHaveBeenCalledTimes(2);
   });
 });

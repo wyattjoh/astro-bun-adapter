@@ -123,6 +123,9 @@ export default function bunAdapter(
             server: doneConfig.build.server.toString(),
             adapterDir: relativeAdapterDir,
             assets: doneConfig.build.assets,
+            imageEndpointRoute: doneConfig.image.endpoint.route.startsWith("/")
+              ? doneConfig.image.endpoint.route
+              : `/${doneConfig.image.endpoint.route}`,
             // ISR is disabled in dev mode — it only applies to production builds
             // where SSR responses can be cached based on s-maxage / stale-while-revalidate.
             isr:

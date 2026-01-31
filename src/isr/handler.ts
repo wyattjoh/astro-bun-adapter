@@ -5,6 +5,30 @@ import { PersistentLRUCache } from "./cache.ts";
 
 const log = debug("@wyattjoh/astro-bun-adapter:isr");
 
+/**
+ * Cache-Control header applied to image endpoint responses. Astro's image
+ * endpoint hardcodes `public, max-age=31536000` without `s-maxage`, so
+ * without this override image responses would always bypass ISR.
+ */
+const IMAGE_CACHE_CONTROL =
+  "public, max-age=31536000, s-maxage=31536000, stale-while-revalidate=86400";
+
+/**
+ * If `cacheKey` matches the image endpoint route, replace the `cache-control`
+ * header in the tuple array so `buildCacheEntry` sees `s-maxage`.
+ */
+function applyImageCacheOverride(
+  headers: [string, string][],
+  cacheKey: string,
+  imageEndpointRoute: string
+): [string, string][] {
+  if (!cacheKey.startsWith(imageEndpointRoute)) return headers;
+
+  return headers.map(([name, value]) =>
+    name === "cache-control" ? [name, IMAGE_CACHE_CONTROL] : [name, value]
+  );
+}
+
 function buildCacheEntry(
   headers: [string, string][],
   status: number,
@@ -51,13 +75,19 @@ function renderToEntry(
   request: Request,
   handler: (request: Request) => Promise<Response>,
   cache: PersistentLRUCache,
-  pathname: string,
-  cacheStatus: CacheStatus
+  cacheKey: string,
+  cacheStatus: CacheStatus,
+  imageEndpointRoute: string
 ): RenderResult {
   const done = handler(request).then((response) => {
     const clone = response.clone();
     // Capture clean headers and status before mutating the response with x-astro-cache.
-    const headers: [string, string][] = Array.from(clone.headers.entries());
+    const rawHeaders: [string, string][] = Array.from(clone.headers.entries());
+    const headers = applyImageCacheOverride(
+      rawHeaders,
+      cacheKey,
+      imageEndpointRoute
+    );
     const { status } = clone;
     response.headers.set("x-astro-cache", cacheStatus);
     const entryPromise = clone.arrayBuffer().then(async (buf) => {
@@ -65,9 +95,9 @@ function renderToEntry(
       const entry = buildCacheEntry(headers, status, body);
       if (entry) {
         log(
-          `ISR cached ${pathname} (s-maxage=${entry.sMaxAge}, swr=${entry.swr})`
+          `ISR cached ${cacheKey} (s-maxage=${entry.sMaxAge}, swr=${entry.swr})`
         );
-        await cache.set(pathname, entry);
+        await cache.set(cacheKey, entry);
       }
       return entry;
     });
@@ -85,7 +115,8 @@ export function createISRHandler(
   maxByteSize: number,
   cacheDir: string,
   buildId: string,
-  preFillMemoryCache: boolean
+  preFillMemoryCache: boolean,
+  imageEndpointRoute: string
 ): ISRHandler {
   const cache = new PersistentLRUCache({
     maxByteSize,
@@ -96,53 +127,61 @@ export function createISRHandler(
   const revalidating = new Set<string>();
   const inflight = new Map<string, Promise<ISRCacheEntry | undefined>>();
 
-  const isrHandler = (async (request, pathname) => {
-    const entry = await cache.get(pathname);
+  const isrHandler = (async (request, cacheKey) => {
+    const entry = await cache.get(cacheKey);
     if (entry) {
       const elapsed = Date.now() - entry.cachedAt;
 
       // Fresh — within s-maxage, serve directly from cache.
       if (elapsed < entry.sMaxAge * 1000) {
-        log(`ISR cache HIT for ${pathname}`);
+        log(`ISR cache HIT for ${cacheKey}`);
         return responseFromEntry(entry, "HIT");
       }
 
       // Stale — within the stale-while-revalidate window. Serve the
       // cached response immediately and kick off a background revalidation
-      // (at most one per path at a time).
+      // (at most one per key at a time).
       if (elapsed < (entry.sMaxAge + entry.swr) * 1000) {
-        log(`ISR cache STALE for ${pathname}, serving stale`);
-        if (!revalidating.has(pathname)) {
-          revalidating.add(pathname);
-          log(`ISR revalidating ${pathname}`);
+        log(`ISR cache STALE for ${cacheKey}, serving stale`);
+        if (!revalidating.has(cacheKey)) {
+          revalidating.add(cacheKey);
+          log(`ISR revalidating ${cacheKey}`);
           const result = renderToEntry(
             new Request(request.url, request),
             handler,
             cache,
-            pathname,
-            "STALE"
+            cacheKey,
+            "STALE",
+            imageEndpointRoute
           );
           result.entry
             .catch(() => {})
-            .finally(() => revalidating.delete(pathname));
+            .finally(() => revalidating.delete(cacheKey));
         }
         return responseFromEntry(entry, "STALE");
       }
 
       // Beyond the SWR window — discard the stale entry and fall through
       // to a full re-render below.
-      log(`ISR expired entry evicted for ${pathname}`);
-      await cache.delete(pathname);
+      log(`ISR expired entry evicted for ${cacheKey}`);
+      await cache.delete(cacheKey);
     }
 
     // Cache miss — render via SSR, deduplicating concurrent requests for
-    // the same pathname so only one render is in-flight at a time.
-    log(`ISR cache MISS for ${pathname}`);
-    const pending = inflight.get(pathname);
+    // the same cache key so only one render is in-flight at a time.
+    log(`ISR cache MISS for ${cacheKey}`);
+    const pending = inflight.get(cacheKey);
     if (!pending) {
-      const result = renderToEntry(request, handler, cache, pathname, "MISS");
-      inflight.set(pathname, result.entry);
-      result.entry.finally(() => inflight.delete(pathname));
+      const result = renderToEntry(
+        request,
+        handler,
+        cache,
+        cacheKey,
+        "MISS",
+        imageEndpointRoute
+      );
+      inflight.set(cacheKey, result.entry);
+      result.entry.finally(() => inflight.delete(cacheKey));
 
       // First caller gets the streaming response.
       return result.streaming;
@@ -153,7 +192,7 @@ export function createISRHandler(
     if (cached) return responseFromEntry(cached, "MISS");
 
     // Not cacheable — fall through to direct SSR.
-    log(`ISR BYPASS for ${pathname} (not cacheable)`);
+    log(`ISR BYPASS for ${cacheKey} (not cacheable)`);
     const response = await handler(request);
     response.headers.set("x-astro-cache", "BYPASS");
     return response;

@@ -15,6 +15,34 @@ import type {
 // Required for astro:env/server to resolve env vars at runtime.
 setGetEnv((key) => process.env[key]);
 
+/** Known Astro image endpoint query parameters, pre-sorted for deterministic output. */
+const IMAGE_PARAMS = [
+  "background",
+  "f",
+  "fit",
+  "h",
+  "href",
+  "position",
+  "q",
+  "w",
+];
+
+/**
+ * Build a deterministic cache key for image endpoint requests by normalizing
+ * query parameters — only known image params are kept, in sorted order.
+ */
+export function buildImageCacheKey(
+  pathname: string,
+  params: URLSearchParams
+): string {
+  const normalized = new URLSearchParams();
+  for (const key of IMAGE_PARAMS) {
+    const value = params.get(key);
+    if (value !== null) normalized.set(key, value);
+  }
+  return `${pathname}?${normalized.toString()}`;
+}
+
 // Internal helper — creates a single App instance and derives both the
 // request handler and the app reference from it.
 function createApp(ssrManifest: SSRManifest) {
@@ -66,7 +94,8 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
       options.isr.maxByteSize,
       cacheDir,
       buildId,
-      options.isr.preFillMemoryCache
+      options.isr.preFillMemoryCache,
+      options.imageEndpointRoute
     );
   }
 
@@ -112,7 +141,10 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
         return handler(request);
       }
 
-      return isr(request, pathname);
+      const cacheKey = pathname.startsWith(options.imageEndpointRoute)
+        ? buildImageCacheKey(pathname, url.searchParams)
+        : pathname;
+      return isr(request, cacheKey);
     },
   });
 

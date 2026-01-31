@@ -21,6 +21,8 @@ export interface AdapterOptions {
   adapterDir: string;
   /** Name of the assets directory (default `_astro`). */
   assets: string;
+  /** Image endpoint route with leading slash (e.g. "/_image"). */
+  imageEndpointRoute: string;
   /**
    * ISR (Incremental Static Regeneration) caching configuration.
    * `false` disables ISR; otherwise holds the resolved ISR options.
@@ -68,9 +70,9 @@ export interface ManifestEntry {
 
 export type StaticManifest = Record<string, ManifestEntry>;
 
-/** An ISR request handler that takes a Request and pathname, returning a Response. */
+/** An ISR request handler that takes a Request and cache key, returning a Response. */
 export interface ISRHandler {
-  (request: Request, pathname: string): Promise<Response>;
+  (request: Request, cacheKey: string): Promise<Response>;
   /** Drain pending writes and flush cache state to disk. */
   shutdown: () => Promise<void>;
 }
