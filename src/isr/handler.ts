@@ -1,9 +1,14 @@
 import { parse as parseCacheControl } from "cache-control-parser";
 import debug from "debug";
-import type { ISRCacheEntry, ISRHandler } from "../types.ts";
+import type { ISRCache, ISRCacheEntry, ISRHandler } from "../types.ts";
 import { PersistentLRUCache } from "./cache.ts";
 
 const log = debug("@wyattjoh/astro-bun-adapter:isr");
+
+/** Check whether a cache key belongs to the image optimization endpoint. */
+function isImageEndpointKey(key: string, route: string): boolean {
+  return key === route || key.startsWith(`${route}?`);
+}
 
 /**
  * Cache-Control header applied to image endpoint responses. Astro's image
@@ -75,10 +80,7 @@ function renderToEntry(
 
     // When this is the image endpoint, override the cache-control header to ensure that
     // it is cacheable by ISR.
-    if (
-      cacheKey === imageEndpointRoute ||
-      cacheKey.startsWith(`${imageEndpointRoute}?`)
-    ) {
+    if (isImageEndpointKey(cacheKey, imageEndpointRoute)) {
       for (let i = 0; i < headers.length; i++) {
         if (headers[i][0] === "cache-control") {
           headers[i] = [headers[i][0], IMAGE_CACHE_CONTROL];
@@ -213,6 +215,21 @@ export function createISRHandler(options: ISRHandlerOptions): ISRHandler {
   }) as ISRHandler;
 
   handler.shutdown = () => cache.save();
+  handler.cache = {
+    expire: (key) => cache.delete(key),
+    expireAll: async () => {
+      const deletes: Promise<void>[] = [];
+      // Snapshot keys before iterating — cache.delete() mutates the
+      // underlying Set, so iterating the live set would be unsafe.
+      for (const key of [...cache.keys]) {
+        if (isImageEndpointKey(key, imageEndpointRoute)) {
+          continue;
+        }
+        deletes.push(cache.delete(key));
+      }
+      await Promise.all(deletes);
+    },
+  } satisfies ISRCache;
 
   return handler;
 }

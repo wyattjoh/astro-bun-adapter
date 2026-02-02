@@ -65,11 +65,19 @@ export interface ManifestEntry {
 
 export type StaticManifest = Record<string, ManifestEntry>;
 
+/** Minimal cache interface exposed for on-demand cache expiration. */
+export interface ISRCache {
+  expire(key: string): Promise<void>;
+  expireAll(): Promise<void>;
+}
+
 /** An ISR request handler that takes a Request and cache key, returning a Response. */
 export interface ISRHandler {
   (request: Request, cacheKey: string): Promise<Response>;
   /** Drain pending writes and flush cache state to disk. */
   shutdown: () => Promise<void>;
+  /** Cache instance for on-demand expiration via `unstable_expirePath` / `unstable_expireAll`. */
+  cache: ISRCache;
 }
 
 /** The exports returned by `createExports()` in the server entrypoint. */

@@ -295,6 +295,75 @@ describe("createISRHandler", () => {
     expect(handler).toHaveBeenCalledTimes(2);
   });
 
+  test("expireAll removes page entries but preserves image cache", async () => {
+    let callCount = 0;
+    const handler = mock(async (_request: Request) => {
+      callCount++;
+      return new Response(`response-${callCount}`, {
+        status: 200,
+        headers: { "cache-control": "s-maxage=60" },
+      });
+    });
+    const imageHandler = mock(async (_request: Request) => {
+      return new Response("image-data", {
+        status: 200,
+        headers: { "cache-control": "public, max-age=31536000" },
+      });
+    });
+    const origin = mock(async (req: Request) => {
+      const url = new URL(req.url);
+      if (url.pathname === "/_image" || url.pathname.startsWith("/_image?")) {
+        return imageHandler(req);
+      }
+      return handler(req);
+    });
+    const isr = createISRHandler({
+      origin,
+      maxByteSize: 1024 * 1024,
+      cacheDir: testCacheDir(),
+      buildId: BUILD_ID,
+      preFillMemoryCache: false,
+      imageEndpointRoute: "/_image",
+    });
+
+    // Populate page cache.
+    await (await isr(request("/page"), "/page")).text();
+    // Populate image cache.
+    await (
+      await isr(
+        request("/_image?href=foo.png&w=100"),
+        "/_image?href=foo.png&w=100"
+      )
+    ).text();
+
+    // Both should be cached.
+    expect(
+      (await isr(request("/page"), "/page")).headers.get("x-astro-cache")
+    ).toBe("HIT");
+    expect(
+      (
+        await isr(
+          request("/_image?href=foo.png&w=100"),
+          "/_image?href=foo.png&w=100"
+        )
+      ).headers.get("x-astro-cache")
+    ).toBe("HIT");
+
+    // Expire all non-image entries.
+    await isr.cache.expireAll();
+
+    // Page should be a miss now.
+    const pageAfter = await isr(request("/page"), "/page");
+    expect(pageAfter.headers.get("x-astro-cache")).toBe("MISS");
+
+    // Image should still be a hit.
+    const imageAfter = await isr(
+      request("/_image?href=foo.png&w=100"),
+      "/_image?href=foo.png&w=100"
+    );
+    expect(imageAfter.headers.get("x-astro-cache")).toBe("HIT");
+  });
+
   test("different image query strings produce separate cache entries", async () => {
     let callCount = 0;
     const handler = mock(async (_request: Request) => {

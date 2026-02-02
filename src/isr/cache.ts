@@ -210,6 +210,11 @@ export class PersistentLRUCache {
     }
   }
 
+  /** All keys known to the cache (both in-memory and on-disk). */
+  get keys(): ReadonlySet<string> {
+    return this.diskKeys;
+  }
+
   /** Drain pending writes and flush the index to disk. */
   async save(): Promise<void> {
     await Promise.all(this.pendingWrites);

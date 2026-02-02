@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import type { SSRManifest } from "astro";
 import { App } from "astro/app";
 import { setGetEnv } from "astro/env/setup";
+import { registerCache } from "./cache.ts";
 import { createISRHandler } from "./isr/handler.ts";
 import type {
   AdapterOptions,
@@ -95,6 +96,7 @@ export function start(ssrManifest: SSRManifest, options: AdapterOptions): void {
       preFillMemoryCache: options.isr.preFillMemoryCache,
       imageEndpointRoute: options.imageEndpointRoute,
     });
+    registerCache(isr.cache);
   }
 
   // Graceful shutdown — flush ISR cache to disk before exit.

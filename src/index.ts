@@ -82,17 +82,17 @@ interface BunAdapterConfig {
    *
    * @example
    * // Use defaults (maxByteSize: 50 MB)
-   * bunAdapter({ isr: true })
+   * bun({ isr: true })
    *
    * @example
    * // Custom cache byte size (100 MB)
-   * bunAdapter({ isr: { maxByteSize: 100 * 1024 * 1024 } })
+   * bun({ isr: { maxByteSize: 100 * 1024 * 1024 } })
    */
   isr?: boolean | ISRConfig;
 }
 
 /** Create the Astro integration that configures and registers the Bun adapter. */
-export default function bunAdapter(
+export default function bun(
   adapterConfig?: BunAdapterConfig
 ): AstroIntegration {
   let config: AstroConfig | undefined;

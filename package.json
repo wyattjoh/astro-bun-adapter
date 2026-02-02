@@ -22,6 +22,7 @@
   "exports": {
     ".": "./dist/index.js",
     "./server.js": "./dist/server.js",
+    "./cache": "./dist/cache.js",
     "./package.json": "./package.json"
   },
   "files": [
@@ -33,7 +34,7 @@
   "license": "MIT",
   "author": "Wyatt Johnson",
   "scripts": {
-    "build": "bunup src/index.ts src/server.ts --target bun --format esm --dts --sourcemap --clean --packages external",
+    "build": "bunup src/index.ts src/server.ts src/cache.ts --target bun --format esm --dts --sourcemap --clean --packages external",
     "test": "bun test --concurrent src/",
     "typecheck": "tsc -p . --noEmit",
     "lint": "biome check .",

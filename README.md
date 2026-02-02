@@ -68,6 +68,24 @@ adapter: bun({
 - The cache survives restarts: evicted entries stay on disk and reload on demand. Each build gets its own cache namespace, and old caches are cleaned up automatically.
 - Responses include an `x-astro-cache` header: `HIT`, `STALE`, `MISS`, or `BYPASS`.
 
+### On-Demand Cache Expiration (Experimental)
+
+> **Note:** This API is unstable and experimental. The function names and behavior may change in a future release without following semver.
+
+You can expire individual ISR cache entries on demand using `unstable_expirePath`. The entry is deleted from the cache and will be lazily re-rendered on the next request.
+
+```ts
+import { unstable_expirePath, unstable_expireAll } from "@wyattjoh/astro-bun-adapter/cache";
+
+// Expire a single path:
+await unstable_expirePath("/blog/my-post");
+
+// Expire all cached paths:
+await unstable_expireAll();
+```
+
+Both functions are no-ops when ISR is not enabled, so they're safe to call unconditionally.
+
 ## Environment Variables
 
 - `PORT` — Override the server port (default: from Astro config or `4321`)
@@ -75,6 +93,7 @@ adapter: bun({
 - `DEBUG` — Enable debug logging via the [`debug`](https://www.npmjs.com/package/debug) package. Use `DEBUG=@wyattjoh/astro-bun-adapter:*` for all adapter logs, or target specific subsystems:
   - `@wyattjoh/astro-bun-adapter:isr` — ISR cache hits, misses, revalidations, and bypasses
   - `@wyattjoh/astro-bun-adapter:cache` — LRU cache internals (evictions, disk persistence, restore)
+  - `@wyattjoh/astro-bun-adapter:expire` — On-demand cache expiration via `unstable_expirePath` / `unstable_expireAll`
 
 ## Acknowledgements
 
