@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.3.0...v1.4.0) (2026-02-03)
+
+
+### Features
+
+* add `staticCacheControl` config option for non-hashed static assets ([7a59cbd](https://github.com/wyattjoh/astro-bun-adapter/commit/7a59cbdfae5469fd52578b4472dc0eed8b55a0da))
+
 # [1.3.0](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.2.1...v1.3.0) (2026-02-02)
 
 
