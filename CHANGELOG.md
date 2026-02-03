@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.4.0...v1.5.0) (2026-02-03)
+
+
+### Features
+
+* add x-astro-cache header to all response types ([de6ab7f](https://github.com/wyattjoh/astro-bun-adapter/commit/de6ab7ff58b0d1639a35ecd18a2637c6c180bab4))
+
 # [1.4.0](https://github.com/wyattjoh/astro-bun-adapter/compare/v1.3.0...v1.4.0) (2026-02-03)
 
 
