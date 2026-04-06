@@ -9,25 +9,20 @@ import type {
   RouteToHeaders,
 } from "astro";
 import { generateStaticManifest } from "./manifest.ts";
-import type { AdapterOptions } from "./types.ts";
+import { createConfigPlugin } from "./vite-plugin-config.ts";
 
 export type { AdapterOptions } from "./types.ts";
 
-/** Build the Astro adapter descriptor with supported features and serialized options. */
-function getAdapter(options: AdapterOptions): AstroAdapter {
+/** Build the Astro adapter descriptor with supported features. */
+function getAdapter(): AstroAdapter {
   return {
     name: "@wyattjoh/astro-bun-adapter",
     serverEntrypoint: "@wyattjoh/astro-bun-adapter/server.js",
-    exports: ["handler"],
-    // Serialized as a JSON literal into dist/server/entry.mjs at build time.
-    // This happens during server entrypoint bundling (before client build),
-    // so only config-derived values can go here — not build artifacts like
-    // the static manifest which doesn't exist yet.
-    args: options,
+    entrypointResolution: "auto",
     adapterFeatures: {
       buildOutput: "server",
-      edgeMiddleware: false,
-      experimentalStaticHeaders: true,
+      middlewareMode: "classic",
+      staticHeaders: true,
     },
     supportedAstroFeatures: {
       hybridOutput: "stable",
@@ -114,6 +109,8 @@ export default function bun(
   let adapterDir: string | undefined;
   let routeToHeaders: RouteToHeaders | undefined;
 
+  const { plugin: configPlugin, setConfig } = createConfigPlugin();
+
   return {
     name: "@wyattjoh/astro-bun-adapter",
     hooks: {
@@ -138,9 +135,7 @@ export default function bun(
             driver: currentConfig.session?.driver ?? "fs-lite",
           },
           vite: {
-            ssr: {
-              noExternal: ["@wyattjoh/astro-bun-adapter"],
-            },
+            plugins: [configPlugin],
           },
         });
       },
@@ -154,33 +149,29 @@ export default function bun(
           fileURLToPath(new URL(doneConfig.build.server)),
           relativeAdapterDir
         );
-        setAdapter(
-          getAdapter({
-            host: doneConfig.server.host,
-            port: doneConfig.server.port,
-            client: doneConfig.build.client.toString(),
-            server: doneConfig.build.server.toString(),
-            adapterDir: relativeAdapterDir,
-            assets: doneConfig.build.assets,
-            staticCacheControl,
-            imageEndpointRoute: doneConfig.image.endpoint.route.startsWith("/")
-              ? doneConfig.image.endpoint.route
-              : `/${doneConfig.image.endpoint.route}`,
-            // ISR is disabled in dev mode — it only applies to production builds
-            // where SSR responses can be cached based on s-maxage / stale-while-revalidate.
-            isr:
-              !isDevMode && adapterConfig?.isr
-                ? {
-                    maxByteSize: isrConfig.maxByteSize ?? 50 * 1024 * 1024,
-                    cacheDir: isrConfig.cacheDir,
-                    preFillMemoryCache: isrConfig.preFillMemoryCache ?? false,
-                  }
-                : false,
-          })
-        );
+
+        setConfig({
+          host: doneConfig.server.host,
+          port: doneConfig.server.port,
+          adapterDir: relativeAdapterDir,
+          staticCacheControl,
+          imageEndpointRoute: doneConfig.image.endpoint.route.startsWith("/")
+            ? doneConfig.image.endpoint.route
+            : `/${doneConfig.image.endpoint.route}`,
+          isr:
+            !isDevMode && adapterConfig?.isr
+              ? {
+                  maxByteSize: isrConfig.maxByteSize ?? 50 * 1024 * 1024,
+                  cacheDir: isrConfig.cacheDir,
+                  preFillMemoryCache: isrConfig.preFillMemoryCache ?? false,
+                }
+              : false,
+        });
+
+        setAdapter(getAdapter());
       },
-      "astro:build:generated": ({ experimentalRouteToHeaders }) => {
-        routeToHeaders = experimentalRouteToHeaders;
+      "astro:build:generated": ({ routeToHeaders: rth }) => {
+        routeToHeaders = rth;
       },
       "astro:build:done": async () => {
         if (!config || !adapterDir) return;
@@ -188,8 +179,6 @@ export default function bun(
         const clientDir = new URL(config.build.client, config.outDir);
         await mkdir(adapterDir, { recursive: true });
 
-        // Serialize routeToHeaders (e.g. CSP) so the manifest can attach
-        // extra headers directly to matching static file entries.
         let serializedRouteHeaders:
           | Record<string, Record<string, string>>
           | undefined;
@@ -212,8 +201,6 @@ export default function bun(
           staticCacheControl
         );
 
-        // Write a unique build ID so the server can namespace its ISR cache
-        // per build, allowing old caches to be vacuumed on mounted volumes.
         const buildId = randomUUID();
         await writeFile(join(adapterDir, "build-id"), buildId);
       },
