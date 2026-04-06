@@ -5,8 +5,10 @@ An Astro adapter that runs your SSR site on Bun using `Bun.serve`.
 ## Installation
 
 ```bash
-bun add @wyattjoh/astro-bun-adapter
+bun add @wyattjoh/astro-bun-adapter astro@^6.0.0
 ```
+
+> **v2.0.0 Breaking Change:** This version requires Astro 6. If you are using Astro 5, use v1.x of this adapter.
 
 ## Usage
 
@@ -32,7 +34,7 @@ bun run ./dist/server/entry.mjs
 
 - **All output modes** — `static`, `server`, and `hybrid` are all supported.
 - **Optimized static serving** — Pre-rendered pages and static assets are served directly from a build-time manifest with ETag/304 support. Vite-hashed assets (`/_astro/*`) get immutable 1-year cache headers; other static assets default to 24-hour must-revalidate (configurable via [`staticCacheControl`](#static-cache-control)). Pre-rendered HTML pages are accessible via clean URLs (e.g. `/about` serves `/about/index.html`). Static responses include an `x-astro-cache: STATIC` header.
-- **Route-level headers** — When Astro's `experimentalStaticHeaders` is enabled, per-route headers (e.g. `Content-Security-Policy`) are included in static responses.
+- **Route-level headers** — When Astro's `staticHeaders` adapter feature is enabled, per-route headers (e.g. `Content-Security-Policy`) are included in static responses.
 - **ISR (Incremental Static Regeneration)** — Optional two-tier cache for SSR responses. See [ISR](#isr-incremental-static-regeneration-1) below.
 
 ## Static Cache Control
@@ -45,7 +47,7 @@ adapter: bun({
 }),
 ```
 
-Hashed assets under `/_astro/` always use `public, max-age=31536000, immutable` regardless of this setting. Route-level headers from `experimentalStaticHeaders` still take precedence over `staticCacheControl`.
+Hashed assets under `/_astro/` always use `public, max-age=31536000, immutable` regardless of this setting. Route-level headers from `staticHeaders` still take precedence over `staticCacheControl`.
 
 ## ISR (Incremental Static Regeneration)
 
