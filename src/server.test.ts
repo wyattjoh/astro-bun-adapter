@@ -41,10 +41,11 @@ const { serverDir } = makeTempAdapterDir(
   {
     "/index.html": {
       headers: {
-        ETag: '"abc123"',
-        "Content-Type": "text/html",
-        "Content-Length": "4",
-        "Cache-Control": "public, max-age=86400, must-revalidate",
+        // Headers are canonicalized to lowercase by generateStaticManifest.
+        etag: '"abc123"',
+        "content-type": "text/html",
+        "content-length": "4",
+        "cache-control": "public, max-age=86400, must-revalidate",
       },
       filePath: "index.html",
     },

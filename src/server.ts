@@ -155,7 +155,7 @@ Bun.serve({
         const headers = new Headers(meta.headers);
         headers.set(CACHE_HEADER, "STATIC");
 
-        if (request.headers.get("if-none-match") === meta.headers.ETag) {
+        if (request.headers.get("if-none-match") === headers.get("etag")) {
           headers.delete("Content-Length");
           headers.delete("Content-Type");
           return new Response(null, { status: 304, headers });

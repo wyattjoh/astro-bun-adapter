@@ -79,20 +79,36 @@ export async function generateStaticManifest(
         .slice(0, 16);
       const pathname = `/${relative(clientDir, filePath)}`;
       const contentType = lookup(filePath);
-      const headers: Record<string, string> = {
-        // Adapter defaults (can be overridden by route-level headers).
-        "Cache-Control": getCacheControl(
-          pathname,
-          assetsPrefix,
-          staticCacheControl
-        ),
-        // Route-level headers (e.g. CSP, CORS) take precedence over defaults.
-        ...routeHeaders?.[filePathToRoute(pathname)],
-        // Content-derived headers — always set by the adapter.
-        ETag: `"${hash}"`,
-        "Content-Length": String(content.byteLength),
-      };
-      if (contentType) headers["Content-Type"] = contentType;
+
+      // Build via the Headers API so case variants (e.g. a `content-type` from
+      // Astro's routeHeaders alongside the mrmime-derived `Content-Type`) merge
+      // into a single canonical entry. Plain-object keys are case-sensitive,
+      // which is what produced duplicate headers on the wire previously.
+      const h = new Headers();
+
+      // Adapter default (can be overridden by route-level headers).
+      h.set(
+        "Cache-Control",
+        getCacheControl(pathname, assetsPrefix, staticCacheControl)
+      );
+
+      // Route-level headers (e.g. CSP, CORS) override defaults.
+      const routeEntry = routeHeaders?.[filePathToRoute(pathname)];
+      if (routeEntry) {
+        for (const [key, value] of Object.entries(routeEntry)) {
+          h.set(key, value);
+        }
+      }
+
+      // Content-derived headers always win over route-level headers.
+      h.set("ETag", `"${hash}"`);
+      h.set("Content-Length", String(content.byteLength));
+      if (contentType) h.set("Content-Type", contentType);
+
+      // Serialize to a plain object. Headers iteration yields lowercase keys,
+      // so downstream reads should use lowercase names (e.g. `headers.etag`).
+      const headers: Record<string, string> = Object.fromEntries(h);
+
       const entry: ManifestEntry = {
         headers,
         filePath: relative(clientDir, filePath),
