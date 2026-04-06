@@ -19,6 +19,13 @@
 
 * add on-demand ISR cache expiration API ([a659f5c](https://github.com/wyattjoh/astro-bun-adapter/commit/a659f5c6974590105403209ff05626c14422fd34))
 
+## [2.0.1](https://github.com/wyattjoh/astro-bun-adapter/compare/astro-bun-adapter-v2.0.0...astro-bun-adapter-v2.0.1) (2026-04-06)
+
+
+### Bug Fixes
+
+* canonicalize static manifest headers to avoid duplicates ([e367e45](https://github.com/wyattjoh/astro-bun-adapter/commit/e367e4576b21f2ad7f40e1f7bded1945b9788f34))
+
 ## [2.0.0](https://github.com/wyattjoh/astro-bun-adapter/compare/astro-bun-adapter-v1.4.0...astro-bun-adapter-v2.0.0) (2026-04-06)
 
 
