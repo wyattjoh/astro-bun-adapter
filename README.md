@@ -8,7 +8,11 @@ An Astro adapter that runs your SSR site on Bun using `Bun.serve`.
 bun add @wyattjoh/astro-bun-adapter astro@^6.0.0
 ```
 
+**Requirements:** Astro 6, Bun `>=1.0.0`, and Node `>=22.12.0` (needed for the build-time integration, which runs under Node).
+
 > **v2.0.0 Breaking Change:** This version requires Astro 6. If you are using Astro 5, use v1.x of this adapter.
+
+> **Note:** The `@wyattjoh/astro-bun-adapter/server.js` subpath is exported only so Astro can resolve it as the adapter's `serverEntrypoint`. It is not a public API -- importing it directly starts `Bun.serve` as a side effect and should be avoided.
 
 ## Usage
 
