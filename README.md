@@ -81,6 +81,7 @@ adapter: bun({
 - Image endpoint responses are automatically ISR-cacheable (the adapter adds `s-maxage` to Astro's image `Cache-Control`).
 - The cache survives restarts: evicted entries stay on disk and reload on demand. Each build gets its own cache namespace, and old caches are cleaned up automatically.
 - ISR responses include an `x-astro-cache` header: `HIT`, `STALE`, `MISS`, or `BYPASS`.
+- **Known limitation:** `Astro.clientAddress` is not available during ISR cache miss renders. It works for non-ISR requests and server island bypass requests.
 
 ### On-Demand Cache Expiration (Experimental)
 
