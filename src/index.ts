@@ -70,7 +70,7 @@ interface BunAdapterConfig {
    * Override the default `Cache-Control` header for non-hashed static assets.
    * Hashed assets under `/_astro/` always use
    * `public, max-age=31536000, immutable`. Route-level
-   * `experimentalStaticHeaders` still take precedence over this value.
+   * `staticHeaders` still take precedence over this value.
    *
    * @default "public, max-age=86400, must-revalidate"
    */

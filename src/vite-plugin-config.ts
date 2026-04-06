@@ -42,7 +42,7 @@ export function createConfigPlugin(): {
       handler() {
         if (!config) {
           throw new Error(
-            "@wyattjoh/astro-bun-adapter: config not initialized — load() called before astro:config:done"
+            "@wyattjoh/astro-bun-adapter: config not initialized (load() called before astro:config:done)"
           );
         }
         return Object.entries(config)
