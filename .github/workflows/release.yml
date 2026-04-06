@@ -1,39 +1,26 @@
 name: Release
+
 on:
-  workflow_dispatch:
   push:
     branches:
-      - "*"
-    tags:
-      - "*"
+      - main
+  pull_request:
 
 permissions:
-  contents: read # for checkout
+  contents: read
 
 jobs:
-  release:
-    name: Build & Release
+  ci:
+    name: CI
     runs-on: ubuntu-latest
-
-    concurrency: release-${{ github.ref }}
-    permissions:
-      contents: write # to be able to publish a GitHub release
-      issues: write # to be able to comment on released issues
-      pull-requests: write # to be able to comment on released pull requests
-      id-token: write # to enable use of OIDC for trusted publishing and npm provenance
-
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "24"
       - uses: oven-sh/setup-bun@v2
         with:
           bun-version: latest
 
-      - name: Install modules
-        run: |
-          bun install --frozen-lockfile
+      - name: Install
+        run: bun install --frozen-lockfile
 
       - name: Lint
         run: bun run lint
@@ -44,10 +31,51 @@ jobs:
       - name: Test
         run: bun run test
 
-      - name: Release
-        if: github.ref == 'refs/heads/main'
+      - name: Build
+        run: bun run build
+
+  release-please:
+    name: Release Please
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: ci
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+  publish:
+    name: Publish to npm
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install
+        run: bun install --frozen-lockfile
+
+      - name: Build
+        run: bun run build
+
+      - name: Publish
+        run: npm publish --provenance --access public
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          bun run build
-          bun run release
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

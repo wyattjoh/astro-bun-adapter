@@ -1,26 +1,15 @@
 /**
- * Internal adapter options serialized as JSON into the generated entry.mjs at
- * build time. These are passed to the server entrypoint's `start()` function.
+ * Adapter-specific options passed to the server entrypoint via a Vite virtual
+ * module at build time. Runtime values like `buildClientDir` and
+ * `buildServerDir` come from `app.manifest` instead.
  */
 export interface AdapterOptions {
   /** Hostname or boolean (`true` = `"0.0.0.0"`, `false` = `"localhost"`). */
   host: string | boolean;
   /** Port the server listens on. */
   port: number;
-  /**
-   * Absolute `file://` URL to `dist/client/`. Passed through adapter args so
-   * the server entrypoint can resolve paths at runtime — `import.meta.url` is
-   * unreliable because Astro bundles the entrypoint into a chunk.
-   */
-  client: string;
-  /**
-   * Absolute `file://` URL to `dist/server/`. Same rationale as {@link client}.
-   */
-  server: string;
   /** Relative path to the adapter directory within `dist/server/` (e.g. `".astro-bun-adapter"`). Resolved at runtime against the server directory. */
   adapterDir: string;
-  /** Name of the assets directory (default `_astro`). */
-  assets: string;
   /**
    * `Cache-Control` header for non-hashed static assets. Hashed assets
    * (`/_astro/*`) always use `public, max-age=31536000, immutable`.
@@ -83,9 +72,4 @@ export interface ISRHandler {
   shutdown: () => Promise<void>;
   /** Cache instance for on-demand expiration via `unstable_expirePath` / `unstable_expireAll`. */
   cache: ISRCache;
-}
-
-/** The exports returned by `createExports()` in the server entrypoint. */
-export interface ServerExports {
-  handler: (request: Request) => Promise<Response>;
 }
