@@ -34,7 +34,7 @@
   "license": "MIT",
   "author": "Wyatt Johnson",
   "scripts": {
-    "build": "bunup src/index.ts src/server.ts src/cache.ts --target bun --format esm --dts --sourcemap --clean --packages external",
+    "build": "bunup",
     "test": "bun test --concurrent src/",
     "typecheck": "tsc -p . --noEmit",
     "lint": "biome check .",
