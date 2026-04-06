@@ -36,7 +36,7 @@ Source files in `src/`:
 
 - Build hooks run under **Node**, so `manifest.ts` must use `node:` APIs, not Bun APIs.
 - The runtime server uses the **Web-standard `App`** (not `NodeApp`) since Bun natively supports the Fetch API.
-- Adapter config is passed to the server entrypoint via a Vite virtual module (`virtual:astro-bun-adapter/config`) rather than serializing args into `entry.mjs`. This allows passing full config objects (not just JSON-serializable values) and keeps the entry file clean. At runtime, `app.manifest` provides `buildClientDir`, `buildServerDir`, and `base`.
+- Adapter config is injected into the server entrypoint via a Vite virtual module (`virtual:@wyattjoh/astro-bun-adapter/config`) instead of the deprecated `args` mechanism. The config is JSON-serialized into `export const` statements at build time. At runtime, `app.manifest` provides `buildClientDir`, `buildServerDir`, and `base`.
 - `/_astro/*` paths get immutable 1-year cache headers; everything else defaults to 24-hour must-revalidate (configurable via the `staticCacheControl` adapter option). Route-level `staticHeaders` take precedence over `staticCacheControl`.
 - ISR caching uses `s-maxage` / `stale-while-revalidate` from response `Cache-Control` headers, with background revalidation and request coalescing.
 - ISR uses a two-tier cache — entries evicted from memory (L1) remain on disk (L2) and are loaded back on demand, so memory pressure doesn't lose cached data.
@@ -53,21 +53,18 @@ Source files in `src/`:
 
 ## Commit Messages
 
-This project uses `release-please` (via GitHub Actions) with the Angular preset, so commit message types directly control versioning. Releases are created automatically by the release-please GitHub Action; there is no local release command.
+This project uses `release-please` (via GitHub Actions) for automated versioning. Releases are created automatically; there is no local release command.
+
+release-please uses conventional commit semantics for version bumps:
 
 | Type / Pattern | Release |
 |---|---|
 | `feat:` | **minor** |
 | `fix:` | **patch** |
-| `refactor:` | **patch** |
-| `style:` | **patch** |
-| `types:` | **patch** |
-| `docs(README):` | **patch** |
-| `revert:` (reverts) | **patch** |
 | `BREAKING CHANGE` footer or `!` suffix (e.g. `feat!:`) | **major** |
-| `chore`, `ci`, `test`, `build`, `perf`, `docs` (without `README` scope) | no release |
+| `refactor`, `style`, `types`, `revert`, `docs`, `chore`, `ci`, `test`, `build`, `perf` | included in next release if one is triggered, but do not trigger a release on their own |
 
-Choose the commit type carefully — it determines whether a release is triggered and what kind of version bump occurs.
+Choose the commit type carefully. Only `feat` and `fix` (plus breaking changes) trigger version bumps.
 
 ## Dependencies
 

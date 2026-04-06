@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  pull_request:
 
 permissions:
   contents: read
@@ -30,13 +31,18 @@ jobs:
       - name: Test
         run: bun run test
 
+      - name: Build
+        run: bun run build
+
   release-please:
     name: Release Please
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     needs: ci
     runs-on: ubuntu-latest
     permissions:
       contents: write
       pull-requests: write
+      issues: write
     outputs:
       release_created: ${{ steps.release.outputs.release_created }}
     steps:
