@@ -164,6 +164,77 @@ describe("buildImageCacheKey", () => {
 });
 
 // ---------------------------------------------------------------------------
+// Tests for computeServerIslandsPrefix
+// ---------------------------------------------------------------------------
+
+describe("computeServerIslandsPrefix", () => {
+  test("returns root prefix when base is '/'", () => {
+    expect(serverModule.computeServerIslandsPrefix("/")).toBe(
+      "/_server-islands/"
+    );
+  });
+
+  test("inserts slash when base has no trailing slash (trailingSlash: 'never')", () => {
+    // e.g. `base: "/docs"` with `trailingSlash: "never"` (or default "ignore")
+    expect(serverModule.computeServerIslandsPrefix("/docs")).toBe(
+      "/docs/_server-islands/"
+    );
+  });
+
+  test("does not double the slash when base has a trailing slash (trailingSlash: 'always')", () => {
+    expect(serverModule.computeServerIslandsPrefix("/docs/")).toBe(
+      "/docs/_server-islands/"
+    );
+  });
+
+  test("matches the URL that Astro actually emits", () => {
+    // Astro's runtime: `${base}${slash}_server-islands/${componentId}`
+    // where `slash = base.endsWith("/") ? "" : "/"`.
+    // Regression test: incoming request pathname must startWith the prefix.
+    const prefix = serverModule.computeServerIslandsPrefix("/docs");
+    expect("/docs/_server-islands/MyComponent.abc123".startsWith(prefix)).toBe(
+      true
+    );
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tests for computeImageEndpointPath
+// ---------------------------------------------------------------------------
+
+describe("computeImageEndpointPath", () => {
+  test("returns the route unchanged when base is '/'", () => {
+    expect(serverModule.computeImageEndpointPath("/", "/_image")).toBe(
+      "/_image"
+    );
+  });
+
+  test("prepends base without a trailing slash", () => {
+    expect(serverModule.computeImageEndpointPath("/docs", "/_image")).toBe(
+      "/docs/_image"
+    );
+  });
+
+  test("prepends base with a trailing slash without doubling", () => {
+    expect(serverModule.computeImageEndpointPath("/docs/", "/_image")).toBe(
+      "/docs/_image"
+    );
+  });
+
+  test("tolerates a route missing a leading slash", () => {
+    expect(serverModule.computeImageEndpointPath("/docs", "_image")).toBe(
+      "/docs/_image"
+    );
+  });
+
+  test("matches the URL that Astro actually emits", () => {
+    // Astro's service: joinPaths(BASE_URL, image.endpoint.route) -> `/docs/_image`
+    const path = serverModule.computeImageEndpointPath("/docs", "/_image");
+    expect("/docs/_image?href=photo.jpg&w=800".startsWith(path)).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Tests for server module exports and Bun.serve invocation
 // ---------------------------------------------------------------------------
 

@@ -47,6 +47,29 @@ export function buildImageCacheKey(
   return qs ? `${pathname}?${qs}` : pathname;
 }
 
+/**
+ * Compute the server-islands URL prefix for a given `base`. Astro emits
+ * island URLs as `${base}${slash}_server-islands/...` where `slash` is
+ * empty when `base` already ends with `/`. `base` is not guaranteed to end
+ * with a slash -- it depends on `trailingSlash` config.
+ */
+export function computeServerIslandsPrefix(base: string): string {
+  const slash = base.endsWith("/") ? "" : "/";
+  return `${base}${slash}_server-islands/`;
+}
+
+/**
+ * Compute the runtime image endpoint path by joining `base` with the
+ * image endpoint route. Astro emits image URLs as
+ * `joinPaths(BASE_URL, image.endpoint.route)`, so the incoming pathname
+ * is base-prefixed and must be matched against the same.
+ */
+export function computeImageEndpointPath(base: string, route: string): string {
+  const baseWithoutTrailing = base.endsWith("/") ? base.slice(0, -1) : base;
+  const routeWithLeadingSlash = route.startsWith("/") ? route : `/${route}`;
+  return `${baseWithoutTrailing}${routeWithLeadingSlash}`;
+}
+
 const app = createApp();
 const logger = app.getAdapterLogger();
 const { manifest } = app;
@@ -61,6 +84,12 @@ const manifestPath = join(adapterDir, "static-manifest.json");
 const staticManifest = new Map<string, ManifestEntry>(
   Object.entries(JSON.parse(readFileSync(manifestPath, "utf-8")))
 );
+
+// Base-prefixed paths used for request routing. `base` may or may not
+// end with `/` depending on `trailingSlash` config, and Astro emits
+// both server-island and image endpoint URLs with `base` prepended.
+const serverIslandsPrefix = computeServerIslandsPrefix(base);
+const imageEndpointPath = computeImageEndpointPath(base, imageEndpointRoute);
 
 /** SSR request handler. */
 export const handler = async (request: Request): Promise<Response> => {
@@ -84,7 +113,7 @@ if (isrConfig) {
     cacheDir,
     buildId,
     preFillMemoryCache: isrConfig.preFillMemoryCache,
-    imageEndpointRoute,
+    imageEndpointRoute: imageEndpointPath,
   });
   registerCache(isr.cache);
 }
@@ -111,9 +140,6 @@ const host =
       ? "0.0.0.0"
       : "localhost"
     : configHost);
-
-// Server island ISR bypass prefix (base already ends with /).
-const serverIslandsPrefix = `${base}_server-islands/`;
 
 Bun.serve({
   port,
@@ -169,7 +195,7 @@ Bun.serve({
       return response;
     }
 
-    const cacheKey = pathname.startsWith(imageEndpointRoute)
+    const cacheKey = pathname.startsWith(imageEndpointPath)
       ? buildImageCacheKey(pathname, url.searchParams)
       : pathname;
     return isr(request, cacheKey);
