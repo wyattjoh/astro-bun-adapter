@@ -71,7 +71,7 @@ export function computeImageEndpointPath(base: string, route: string): string {
 }
 
 const app = createApp();
-const logger = app.getAdapterLogger();
+const logger = app.adapterLogger;
 const { manifest } = app;
 
 // Resolve dirs from the manifest URL objects.
