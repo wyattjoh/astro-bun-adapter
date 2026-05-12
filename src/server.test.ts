@@ -61,7 +61,7 @@ const mockLogger = {
 };
 
 const mockApp = {
-  getAdapterLogger: () => mockLogger,
+  adapterLogger: mockLogger,
   manifest: {
     buildClientDir: pathToFileURL(`${join(serverDir, "..", "client")}/`),
     buildServerDir: pathToFileURL(`${serverDir}/`),
