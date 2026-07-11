@@ -4,6 +4,8 @@ import { join, relative } from "node:path";
 import { lookup } from "mrmime";
 import type { ManifestEntry, StaticManifest } from "./types.ts";
 
+const IS_WINDOWS = process.platform === "win32";
+
 /** Return the appropriate Cache-Control header — immutable for Vite-hashed assets, configurable otherwise. */
 function getCacheControl(
   pathname: string,
@@ -77,7 +79,11 @@ export async function generateStaticManifest(
         .update(content)
         .digest("hex")
         .slice(0, 16);
-      const pathname = `/${relative(clientDir, filePath)}`;
+      let relFilePath = relative(clientDir, filePath);
+      if (IS_WINDOWS) {
+        relFilePath = relFilePath.replace(/\\/g, "/");
+      }
+      const pathname = `/${relFilePath}`;
       const contentType = lookup(filePath);
 
       // Build via the Headers API so case variants (e.g. a `content-type` from
@@ -111,7 +117,7 @@ export async function generateStaticManifest(
 
       const entry: ManifestEntry = {
         headers,
-        filePath: relative(clientDir, filePath),
+        filePath: relFilePath,
       };
       return [pathname, entry] as const;
     })
