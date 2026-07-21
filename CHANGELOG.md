@@ -19,6 +19,13 @@
 
 * add on-demand ISR cache expiration API ([a659f5c](https://github.com/wyattjoh/astro-bun-adapter/commit/a659f5c6974590105403209ff05626c14422fd34))
 
+## [2.1.1](https://github.com/wyattjoh/astro-bun-adapter/compare/astro-bun-adapter-v2.1.0...astro-bun-adapter-v2.1.1) (2026-07-21)
+
+
+### Bug Fixes
+
+* **#2:** invalid path to clientDir, route pathnames on Windows ([#14](https://github.com/wyattjoh/astro-bun-adapter/issues/14)) ([31184c3](https://github.com/wyattjoh/astro-bun-adapter/commit/31184c3336e681fe4dca1a9ac95c38e5cf3c3a53))
+
 ## [2.1.0](https://github.com/wyattjoh/astro-bun-adapter/compare/astro-bun-adapter-v2.0.1...astro-bun-adapter-v2.1.0) (2026-05-12)
 
 
