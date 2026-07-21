@@ -176,7 +176,8 @@ export default function bun(
       "astro:build:done": async () => {
         if (!config || !adapterDir) return;
 
-        const clientDir = new URL(config.build.client, config.outDir);
+        const clientDirURL = new URL(config.build.client, config.outDir);
+        const clientDir = fileURLToPath(clientDirURL);
         await mkdir(adapterDir, { recursive: true });
 
         let serializedRouteHeaders:
@@ -194,7 +195,7 @@ export default function bun(
         }
 
         await generateStaticManifest(
-          clientDir.pathname,
+          clientDir,
           adapterDir,
           config.build.assets,
           serializedRouteHeaders,
